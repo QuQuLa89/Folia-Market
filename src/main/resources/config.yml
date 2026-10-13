@@ -1,0 +1,82 @@
+# ==============================================================================
+# FoliaMarket 設定ファイル (config.yml)
+# 開発者: QuQuLa89
+# Folia / Paper (1.21.4+) 対応の次世代スレッドセーフ・マーケットプレイスプラグインです。
+# ==============================================================================
+
+economy:
+  # 取引にかかる市場手数料率（パーセント単位: 0.0 - 100.0）
+  # 例: 5.0 の場合、100円で売れた際に出品者が受け取る金額は95円、税金は5円となります。
+  tax-percent: 5.0
+
+  # 出品可能な最低価格です。
+  min-price: 1.0
+
+  # 出品可能な最高価格です。
+  max-price: 1000000.0
+
+market:
+  # 出品の有効期限（時間単位）
+  # 期限を過ぎた出品はマーケットから取り下げられ、受取・再出品が可能になります。
+  listing-duration-hours: 72
+
+  # 1プレイヤーあたりの最大同時アクティブ出品可能数です。
+  max-listings-per-player: 10
+
+  # データベース接続プール設定（HikariCP）
+  database:
+    # 接続プールの最大接続数です（SQLiteのWALモード推奨値: 5〜10）
+    maximum-pool-size: 10
+    # 接続タイムアウト（ミリ秒）
+    connection-timeout-ms: 10000
+
+gui:
+  # マーケットプレイスのタイトル（MiniMessage形式）
+  title: "<gradient:#2b5876:#4e4376><bold>マーケットプレイス</bold></gradient>"
+
+  # 自身の出品一覧画面のタイトル（MiniMessage形式）
+  my-listings-title: "<gradient:#11998e:#38ef7d><bold>あなたの出品一覧</bold></gradient>"
+
+  # 購入確認画面のタイトル（MiniMessage形式）
+  confirm-title: "<gradient:#f12711:#f5af19><bold>購入確認</bold></gradient>"
+
+  # GUIの自動更新インターバル（秒単位）。0に設定すると定期更新を停止します。
+  refresh-interval-seconds: 5
+
+messages:
+  # メッセージプレフィックス
+  prefix: "<gradient:#00b4db:#0083b0><bold>[FoliaMarket]</bold></gradient> <dark_gray>»</dark_gray> "
+
+  # 一般メッセージ
+  no-permission: "<red>このコマンドを実行する権限がありません。</red>"
+  player-only: "<red>このコマンドはプレイヤーのみ実行できます。</red>"
+  reload-success: "<green>設定ファイルを正常に再読み込みしました。</green>"
+  invalid-price: "<red>価格は有効な数値を指定してください。（{min} 〜 {max}）</red>"
+  price-out-of-range: "<red>出品価格は {min} 以上 {max} 以下で指定してください。</red>"
+  air-item: "<red>手に持っているアイテムを出品してください。（空気は出品できません）</red>"
+  max-listings-reached: "<red>出品上限数（最大 {max} 件）に達しています。</red>"
+
+  # 出品関連
+  listing-success: "<green><b>{item}</b> を <gold>{price} {currency}</gold> で出品しました！（手数料率: {tax}%）</green>"
+  listing-cancel-success: "<yellow>出品 <b>{item}</b> をキャンセルし、手元に回収しました。</yellow>"
+  listing-cancel-failed: "<red>出品のキャンセルに失敗しました。既に購入されている可能性があります。</red>"
+
+  # 購入関連
+  buy-insufficient-funds: "<red>所持金が不足しています！（必要金額: <gold>{price} {currency}</gold>）</red>"
+  buy-success: "<green><b>{item}</b> を <gold>{price} {currency}</gold> で購入しました！</green>"
+  buy-failed-already-sold: "<red>申し訳ありません。この商品は既に売り切れました。</red>"
+  buy-inventory-full: "<yellow>インベントリに空きがないため、アイテムを足元にドロップしました。</yellow>"
+  sale-notification: "<gold><b>[出品通知]</b> あなたの出品した <b>{item}</b> が <yellow>{buyer}</yellow> 様に売れました！売上金 <green>+{net_price} {currency}</green>（手数料 {tax_amount}）を受け取りました。</gold>"
+
+  # GUI用ラベル・Lore
+  gui-item-seller: "<gray>出品者: <white>{seller}</white></gray>"
+  gui-item-price: "<gray>価格: <gold>{price} {currency}</gold></gray>"
+  gui-item-expires: "<gray>有効期限: <aqua>{time_left}</aqua></gray>"
+  gui-item-click-to-buy: "<yellow>▶ クリックして購入する</yellow>"
+  gui-item-click-to-cancel: "<red>▶ クリックして出品を取り下げる</red>"
+  gui-prev-page: "<aqua>◀ 前のページ ({page})</aqua>"
+  gui-next-page: "<aqua>次のページ ({page}) ▶</aqua>"
+  gui-my-listings-button: "<gold>★ 自分の出品を確認する</gold>"
+  gui-back-to-market: "<yellow>◀ マーケットへ戻る</yellow>"
+  gui-confirm-buy-button: "<green><b>✔ 購入を確定する</b></green>"
+  gui-cancel-buy-button: "<red><b>✖ キャンセル</b></red>"

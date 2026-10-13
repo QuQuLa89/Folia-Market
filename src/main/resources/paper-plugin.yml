@@ -1,0 +1,24 @@
+name: FoliaMarket
+version: '${version}'
+main: com.ququla89.foliamarket.FoliaMarketPlugin
+api-version: '1.21'
+folia-supported: true
+author: QuQuLa89
+description: Next-generation thread-safe reactive marketplace plugin designed for Folia and Paper.
+
+dependencies:
+  server:
+    Vault:
+      load: BEFORE
+      required: false
+
+permissions:
+  foliamarket.use:
+    description: Allows opening the market GUI.
+    default: true
+  foliamarket.sell:
+    description: Allows listing items for sale on the market.
+    default: true
+  foliamarket.admin:
+    description: Allows administrative commands such as reload.
+    default: op
