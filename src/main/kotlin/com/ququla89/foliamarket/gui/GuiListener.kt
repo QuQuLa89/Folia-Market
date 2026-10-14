@@ -3,6 +3,7 @@ package com.ququla89.foliamarket.gui
 import com.ququla89.foliamarket.database.model.MarketItemStatus
 import com.ququla89.foliamarket.engine.MarketService
 import com.ququla89.foliamarket.util.MessageUtil
+import org.bukkit.Sound
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -79,6 +80,10 @@ class GuiListener(
 
             MarketGui.ACTION_BACK_TO_MARKET -> {
                 marketGui.openMarket(player, 0)
+            }
+
+            MarketGui.ACTION_BALANCE -> {
+                player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.5f, 1.0f)
             }
 
             MarketGui.ACTION_ITEM_CLICK -> {

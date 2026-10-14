@@ -68,6 +68,7 @@ class MarketGui(
     companion object {
         const val PAGE_SIZE = 45
         const val PREV_SLOT = 45
+        const val BALANCE_SLOT = 47
         const val MY_LISTINGS_SLOT = 49
         const val NEXT_SLOT = 53
 
@@ -79,6 +80,7 @@ class MarketGui(
         const val ACTION_BUY_CONFIRM = "BUY_CONFIRM"
         const val ACTION_BUY_CANCEL = "BUY_CANCEL"
         const val ACTION_ITEM_CLICK = "ITEM_CLICK"
+        const val ACTION_BALANCE = "BALANCE"
     }
 
     fun reloadConfig(newConfig: FileConfiguration) {
@@ -165,7 +167,7 @@ class MarketGui(
                 }
 
                 // Fill navigation bar
-                fillNavigationRow(inventory, validPage, validPage < totalPages, isMyListings = true)
+                fillNavigationRow(player, inventory, validPage, validPage < totalPages, isMyListings = true)
                 player.openInventory(inventory)
             }
         }
@@ -266,10 +268,11 @@ class MarketGui(
             }
         }
 
-        fillNavigationRow(inventory, page, hasNextPage, isMyListings = false)
+        fillNavigationRow(player, inventory, page, hasNextPage, isMyListings = false)
     }
 
     private fun fillNavigationRow(
+        player: Player,
         inventory: Inventory,
         page: Int,
         hasNextPage: Boolean,
@@ -298,6 +301,9 @@ class MarketGui(
                 }
             inventory.setItem(PREV_SLOT, prevItem)
         }
+
+        // Player balance display
+        inventory.setItem(BALANCE_SLOT, createBalanceDisplay(player))
 
         // Center button: My Listings or Back to Market
         if (isMyListings) {
@@ -346,6 +352,36 @@ class MarketGui(
                     }
                 }
             inventory.setItem(NEXT_SLOT, nextItem)
+        }
+    }
+
+    private fun createBalanceDisplay(player: Player): ItemStack {
+        val balance = economyService.getBalance(player)
+        val formattedBalance = "%,.2f".format(balance)
+        val currency = economyService.getCurrencyName()
+
+        return ItemStack(Material.GOLD_INGOT).apply {
+            editMeta { meta ->
+                val title =
+                    MessageUtil
+                        .parse(
+                            config.getString("messages.gui-balance-title", "<gold><b>💰 あなたの所持金</b></gold>"),
+                        ).decoration(TextDecoration.ITALIC, false)
+                meta.displayName(title)
+
+                val loreLine =
+                    MessageUtil
+                        .parse(
+                            config.getString(
+                                "messages.gui-balance-lore",
+                                "<yellow>残高: <white><b>{balance} {currency}</b></white></yellow>",
+                            ),
+                            mapOf("balance" to formattedBalance, "currency" to currency),
+                        ).decoration(TextDecoration.ITALIC, false)
+
+                meta.lore(listOf(Component.empty(), loreLine, Component.empty()))
+                meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_BALANCE)
+            }
         }
     }
 

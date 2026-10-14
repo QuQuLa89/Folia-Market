@@ -86,5 +86,8 @@ messages:
   gui-next-page: "<aqua>次のページ ({page}) ▶</aqua>"
   gui-my-listings-button: "<gold>★ 自分の出品を確認する</gold>"
   gui-back-to-market: "<yellow>◀ マーケットへ戻る</yellow>"
+  # GUI内の所持金表示設定
+  gui-balance-title: "<gold><b>💰 あなたの所持金</b></gold>"
+  gui-balance-lore: "<yellow>残高: <white><b>{balance} {currency}</b></white></yellow>"
   gui-confirm-buy-button: "<green><b>✔ 購入を確定する</b></green>"
   gui-cancel-buy-button: "<red><b>✖ キャンセル</b></red>"
