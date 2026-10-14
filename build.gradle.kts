@@ -1,7 +1,7 @@
 import org.gradle.api.file.DuplicatesStrategy
 
 plugins {
-    kotlin("jvm") version "2.4.10"
+    kotlin("jvm") version "2.4.21"
     id("com.gradleup.shadow") version "9.6.1"
 }
 
@@ -29,14 +29,14 @@ dependencies {
 
     // Kotlin & Coroutines
     implementation(kotlin("stdlib"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
     // Database: HikariCP & SQLite JDBC
-    implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("org.xerial:sqlite-jdbc:3.45.1.0")
+    implementation("com.zaxxer:HikariCP:7.1.0")
+    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
 
     // Ktlint CLI for formatting & verification
-    add(ktlint.name, "com.pinterest.ktlint:ktlint-cli:1.3.1")
+    add(ktlint.name, "com.pinterest.ktlint:ktlint-cli:1.8.0")
 
     // Testing
     testImplementation(kotlin("test-junit5"))
