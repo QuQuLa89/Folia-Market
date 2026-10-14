@@ -4,6 +4,10 @@
 # Folia / Paper (1.21.4+) 対応の次世代スレッドセーフ・マーケットプレイスプラグインです。
 # ==============================================================================
 
+# デバッグモード設定（ストレステストコマンド等の有効化）
+# 本番運用時は false に設定して不正操作を防止してください。
+debug-mode: true
+
 economy:
   # 取引にかかる市場手数料率（パーセント単位: 0.0 - 100.0）
   # 例: 5.0 の場合、100円で売れた際に出品者が受け取る金額は95円、税金は5円となります。
@@ -74,6 +78,10 @@ messages:
   gui-item-expires: "<gray>有効期限: <aqua>{time_left}</aqua></gray>"
   gui-item-click-to-buy: "<yellow>▶ クリックして購入する</yellow>"
   gui-item-click-to-cancel: "<red>▶ クリックして出品を取り下げる</red>"
+  gui-item-sold-info: "<dark_gray>他のプレイヤーに購入されました</dark_gray>"
+  gui-item-cancelled-info: "<dark_gray>出品を取り下げました（回収済み）</dark_gray>"
+  gui-item-click-to-reclaim: "<yellow>▶ クリックして回収する</yellow>"
+  listing-already-closed: "<yellow>この商品は既に取り下げ済みまたは売却済みです。</yellow>"
   gui-prev-page: "<aqua>◀ 前のページ ({page})</aqua>"
   gui-next-page: "<aqua>次のページ ({page}) ▶</aqua>"
   gui-my-listings-button: "<gold>★ 自分の出品を確認する</gold>"

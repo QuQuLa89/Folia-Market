@@ -2,6 +2,7 @@ package com.ququla89.foliamarket.gui
 
 import com.ququla89.foliamarket.database.MarketDao
 import com.ququla89.foliamarket.database.model.MarketItem
+import com.ququla89.foliamarket.database.model.MarketItemStatus
 import com.ququla89.foliamarket.economy.EconomyService
 import com.ququla89.foliamarket.scheduler.SchedulerAdapter
 import com.ququla89.foliamarket.util.ItemSerializer
@@ -59,6 +60,7 @@ class MarketGui(
 ) {
     val itemIdKey = NamespacedKey(plugin, "market_item_id")
     val actionKey = NamespacedKey(plugin, "gui_action")
+    val statusKey = NamespacedKey(plugin, "market_item_status")
 
     // Tracks open slot mapping per player for differential updates: slot -> MarketItem.id
     private val playerSlotState = ConcurrentHashMap<Player, MutableMap<Int, Long>>()
@@ -82,6 +84,11 @@ class MarketGui(
     fun reloadConfig(newConfig: FileConfiguration) {
         this.config = newConfig
     }
+
+    fun getMessage(
+        key: String,
+        default: String,
+    ): String = config.getString(key, default) ?: default
 
     fun clearPlayerState(player: Player) {
         playerSlotState.remove(player)
@@ -356,7 +363,25 @@ class MarketGui(
 
         display.editMeta { meta ->
             val lore = meta.lore() ?: ArrayList()
-            val newLore = ArrayList<Component>(lore)
+            val newLore = ArrayList<Component>()
+
+            if (isOwnListing) {
+                val badge =
+                    when (item.status) {
+                        MarketItemStatus.ACTIVE -> MessageUtil.parse("<green><b>● [出品中]</b></green>")
+                        MarketItemStatus.SOLD -> MessageUtil.parse("<gold><b>✔ [購入済 / 売約済み]</b></gold>")
+                        MarketItemStatus.CANCELLED -> MessageUtil.parse("<gray><b>✖ [取り下げ済み]</b></gray>")
+                        MarketItemStatus.EXPIRED -> MessageUtil.parse("<red><b>⏰ [期限切れ]</b></red>")
+                    }.decoration(TextDecoration.ITALIC, false)
+                newLore.add(badge)
+            }
+
+            if (lore.isNotEmpty()) {
+                if (isOwnListing) {
+                    newLore.add(Component.empty())
+                }
+                newLore.addAll(lore)
+            }
             newLore.add(Component.empty())
 
             val sellerLine =
@@ -389,12 +414,38 @@ class MarketGui(
             newLore.add(Component.empty())
 
             if (isOwnListing) {
-                val cancelLine =
-                    MessageUtil
-                        .parse(
-                            config.getString("messages.gui-item-click-to-cancel", "<red>▶ クリックして出品を取り下げる</red>"),
-                        ).decoration(TextDecoration.ITALIC, false)
-                newLore.add(cancelLine)
+                val footerLine =
+                    when (item.status) {
+                        MarketItemStatus.ACTIVE ->
+                            MessageUtil.parse(
+                                config.getString(
+                                    "messages.gui-item-click-to-cancel",
+                                    "<red>▶ クリックして出品を取り下げる</red>",
+                                ),
+                            )
+                        MarketItemStatus.SOLD ->
+                            MessageUtil.parse(
+                                config.getString(
+                                    "messages.gui-item-sold-info",
+                                    "<dark_gray>他のプレイヤーに購入されました</dark_gray>",
+                                ),
+                            )
+                        MarketItemStatus.CANCELLED ->
+                            MessageUtil.parse(
+                                config.getString(
+                                    "messages.gui-item-cancelled-info",
+                                    "<dark_gray>出品を取り下げました（回収済み）</dark_gray>",
+                                ),
+                            )
+                        MarketItemStatus.EXPIRED ->
+                            MessageUtil.parse(
+                                config.getString(
+                                    "messages.gui-item-click-to-reclaim",
+                                    "<yellow>▶ クリックして回収する</yellow>",
+                                ),
+                            )
+                    }.decoration(TextDecoration.ITALIC, false)
+                newLore.add(footerLine)
             } else {
                 val buyLine =
                     MessageUtil
@@ -407,6 +458,7 @@ class MarketGui(
             meta.lore(newLore)
             meta.persistentDataContainer.set(itemIdKey, PersistentDataType.LONG, item.id)
             meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_ITEM_CLICK)
+            meta.persistentDataContainer.set(statusKey, PersistentDataType.STRING, item.status.name)
         }
 
         return display

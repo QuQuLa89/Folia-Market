@@ -122,6 +122,15 @@ class MarketCommand(
                     return true
                 }
 
+                if (!plugin.config.getBoolean("debug-mode", false)) {
+                    MessageUtil.send(
+                        sender,
+                        "<red>デバッグ機能は無効化されています。config.yml の debug-mode を true に設定してください。</red>",
+                        prefix = prefix,
+                    )
+                    return true
+                }
+
                 if (args.size < 2 || !args[1].equals("stress", ignoreCase = true)) {
                     MessageUtil.send(
                         sender,
@@ -171,8 +180,9 @@ class MarketCommand(
             }
 
             else -> {
+                val isDebugMode = plugin.config.getBoolean("debug-mode", false)
                 val adminHelp =
-                    if (sender.hasPermission("foliamarket.admin")) {
+                    if (sender.hasPermission("foliamarket.admin") && isDebugMode) {
                         "\n<gray>- </gray><yellow>/$label debug stress <ID> [スレッド数]</yellow><gray>: 並行購入ストレステストを実行します</gray>"
                     } else {
                         ""
@@ -196,6 +206,8 @@ class MarketCommand(
         alias: String,
         args: Array<out String>,
     ): List<String> {
+        val isDebugMode = plugin.config.getBoolean("debug-mode", false)
+
         if (args.size == 1) {
             val suggestions = mutableListOf<String>()
             if (sender.hasPermission("foliamarket.use")) {
@@ -206,9 +218,15 @@ class MarketCommand(
             }
             if (sender.hasPermission("foliamarket.admin")) {
                 suggestions.add("reload")
-                suggestions.add("debug")
+                if (isDebugMode) {
+                    suggestions.add("debug")
+                }
             }
             return suggestions.filter { it.startsWith(args[0], ignoreCase = true) }
+        }
+
+        if (args[0].equals("debug", ignoreCase = true) && (!isDebugMode || !sender.hasPermission("foliamarket.admin"))) {
+            return emptyList()
         }
 
         if (args.size == 2) {

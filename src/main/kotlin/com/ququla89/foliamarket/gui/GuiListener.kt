@@ -1,6 +1,8 @@
 package com.ququla89.foliamarket.gui
 
+import com.ququla89.foliamarket.database.model.MarketItemStatus
 import com.ququla89.foliamarket.engine.MarketService
+import com.ququla89.foliamarket.util.MessageUtil
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -82,6 +84,19 @@ class GuiListener(
             MarketGui.ACTION_ITEM_CLICK -> {
                 if (itemId != null) {
                     if (holder.type == GuiType.MY_LISTINGS) {
+                        val statusStr = meta.persistentDataContainer.get(marketGui.statusKey, PersistentDataType.STRING)
+                        val status = statusStr?.let { runCatching { MarketItemStatus.valueOf(it) }.getOrNull() }
+
+                        if (status == MarketItemStatus.SOLD || status == MarketItemStatus.CANCELLED) {
+                            val msg =
+                                marketGui.getMessage(
+                                    "messages.listing-already-closed",
+                                    "<yellow>この商品は既に取り下げ済みまたは売却済みです。</yellow>",
+                                )
+                            MessageUtil.send(player, msg)
+                            return
+                        }
+
                         // Cancel own listing
                         marketService.cancelListing(player, itemId).thenAccept { success ->
                             if (success) {

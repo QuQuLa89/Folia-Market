@@ -68,10 +68,10 @@ class StressTestServiceTest {
         assertFalse(result.isDupeDetected, "Dupe must NOT be detected")
         assertNotNull(result.winnerName, "Winning buyer name must be recorded")
 
-        // Database state must be SOLD
+        // Database state must be rolled back to ACTIVE so items never vanish
         val updatedItem = dao.getItemById(itemId)
         assertNotNull(updatedItem)
-        assertEquals(MarketItemStatus.SOLD, updatedItem?.status)
+        assertEquals(MarketItemStatus.ACTIVE, updatedItem?.status, "Item status must be restored to ACTIVE after stress test")
     }
 
     @Test
@@ -100,6 +100,11 @@ class StressTestServiceTest {
         assertEquals(0, result.errorCount)
         assertTrue(result.isPassed)
         assertFalse(result.isDupeDetected)
+
+        // Database state must also be rolled back to ACTIVE
+        val updatedItem50 = dao.getItemById(itemId)
+        assertNotNull(updatedItem50)
+        assertEquals(MarketItemStatus.ACTIVE, updatedItem50?.status, "Item status must be restored to ACTIVE after 50-thread test")
     }
 
     @Test

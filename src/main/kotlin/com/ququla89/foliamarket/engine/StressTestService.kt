@@ -207,10 +207,16 @@ class StressTestService(
             doneGate.await(60, TimeUnit.SECONDS)
             val elapsedMs = System.currentTimeMillis() - startTime
 
+            // If any worker succeeded, automatically roll back the item from SOLD to ACTIVE so items are never lost
+            val totalSuccess = successCount.get()
+            if (totalSuccess > 0) {
+                dao.casUpdateStatus(itemId, MarketItemStatus.SOLD, MarketItemStatus.ACTIVE)
+            }
+
             return StressTestResult(
                 itemId = itemId,
                 threadCount = threadCount,
-                successCount = successCount.get(),
+                successCount = totalSuccess,
                 alreadySoldCount = alreadySoldCount.get(),
                 errorCount = errorCount.get(),
                 elapsedMs = elapsedMs,
@@ -268,6 +274,12 @@ class StressTestService(
             }
 
         MessageUtil.send(sender, "<gray>総合判定: </gray>$verdictMessage")
+        if (result.successCount > 0) {
+            MessageUtil.send(
+                sender,
+                "<gray>✔ テスト完了後、アイテム <b>#${result.itemId}</b> を自動ロールバックし、出品中(ACTIVE)に安全に復元しました。</gray>",
+            )
+        }
         MessageUtil.send(sender, line)
     }
 
@@ -284,5 +296,8 @@ class StressTestService(
                 "rollbacks=${result.alreadySoldCount}, errors=${result.errorCount}, " +
                 "elapsed=${result.elapsedMs}ms, verdict=$verdict, winner=${result.winnerName ?: "none"}",
         )
+        if (result.successCount > 0) {
+            logger.info("[FoliaMarket] [STRESS TEST] Rolled back item #${result.itemId} to ACTIVE status.")
+        }
     }
 }
