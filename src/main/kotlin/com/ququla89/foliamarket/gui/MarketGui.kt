@@ -700,34 +700,41 @@ class MarketGui(
             if (isOwnListing) {
                 val footerLine =
                     when (item.status) {
-                        MarketItemStatus.ACTIVE ->
+                        MarketItemStatus.ACTIVE -> {
                             MessageUtil.parse(
                                 config.getString(
                                     "messages.gui-item-click-to-cancel",
                                     "<red>▶ クリックして出品を取り下げる</red>",
                                 ),
                             )
-                        MarketItemStatus.SOLD ->
+                        }
+
+                        MarketItemStatus.SOLD -> {
                             MessageUtil.parse(
                                 config.getString(
                                     "messages.gui-item-sold-info",
                                     "<dark_gray>他のプレイヤーに購入されました</dark_gray>",
                                 ),
                             )
-                        MarketItemStatus.CANCELLED ->
+                        }
+
+                        MarketItemStatus.CANCELLED -> {
                             MessageUtil.parse(
                                 config.getString(
                                     "messages.gui-item-cancelled-info",
                                     "<dark_gray>出品を取り下げました（回収済み）</dark_gray>",
                                 ),
                             )
-                        MarketItemStatus.EXPIRED ->
+                        }
+
+                        MarketItemStatus.EXPIRED -> {
                             MessageUtil.parse(
                                 config.getString(
                                     "messages.gui-item-click-to-reclaim",
                                     "<yellow>▶ クリックして回収する</yellow>",
                                 ),
                             )
+                        }
                     }.decoration(TextDecoration.ITALIC, false)
                 newLore.add(footerLine)
             } else {
