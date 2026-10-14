@@ -3,9 +3,12 @@ package com.ququla89.foliamarket.database
 import com.ququla89.foliamarket.database.model.MarketItem
 import com.ququla89.foliamarket.database.model.MarketItemStatus
 import com.ququla89.foliamarket.database.model.MarketSortMode
+import com.ququla89.foliamarket.util.ItemSerializer
+import com.ququla89.foliamarket.util.ItemTranslationManager
 import java.sql.ResultSet
 import java.sql.Statement
 import java.util.UUID
+import java.util.logging.Logger
 
 /**
  * Data Access Object for marketplace items providing thread-safe, atomic operations.
@@ -261,6 +264,68 @@ class MarketDao(
         fromStatus: String,
         toStatus: String,
     ): Boolean = casUpdateStatus(id, MarketItemStatus.valueOf(fromStatus), MarketItemStatus.valueOf(toStatus))
+
+    /**
+     * Updates the item_name (search index) for a specific item.
+     */
+    fun updateItemName(
+        id: Long,
+        newName: String,
+    ): Boolean {
+        val sql = "UPDATE market_items SET item_name = ? WHERE id = ?"
+        databaseManager.getConnection().use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, newName)
+                stmt.setLong(2, id)
+                return stmt.executeUpdate() > 0
+            }
+        }
+    }
+
+    /**
+     * Backfills search indexes for existing items in the database by deserializing
+     * item bytes and building full Japanese + English search keywords.
+     */
+    fun backfillSearchIndexes(logger: Logger? = null): Int {
+        val updates = ArrayList<Pair<Long, String>>()
+        val selectSql = "SELECT id, item_bytes, item_name FROM market_items"
+
+        databaseManager.getConnection().use { conn ->
+            conn.prepareStatement(selectSql).use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val id = rs.getLong("id")
+                        val bytes = rs.getBytes("item_bytes") ?: continue
+                        val currentName = rs.getString("item_name") ?: ""
+                        try {
+                            val item = ItemSerializer.fromByteArray(bytes)
+                            val searchIndex = ItemTranslationManager.buildSearchIndex(item)
+                            if (searchIndex.isNotBlank() && searchIndex != currentName) {
+                                updates.add(id to searchIndex)
+                            }
+                        } catch (e: Exception) {
+                            logger?.fine("Skipping backfill for item $id: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+            if (updates.isEmpty()) {
+                return 0
+            }
+
+            val updateSql = "UPDATE market_items SET item_name = ? WHERE id = ?"
+            conn.prepareStatement(updateSql).use { updateStmt ->
+                for ((id, newIndex) in updates) {
+                    updateStmt.setString(1, newIndex)
+                    updateStmt.setLong(2, id)
+                    updateStmt.addBatch()
+                }
+                updateStmt.executeBatch()
+            }
+        }
+        return updates.size
+    }
 
     private fun mapRow(rs: ResultSet): MarketItem =
         MarketItem(

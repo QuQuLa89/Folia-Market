@@ -13,6 +13,7 @@ import com.ququla89.foliamarket.gui.MarketHolder
 import com.ququla89.foliamarket.scheduler.FoliaSchedulerAdapter
 import com.ququla89.foliamarket.scheduler.PaperSchedulerAdapter
 import com.ququla89.foliamarket.scheduler.SchedulerAdapter
+import com.ququla89.foliamarket.util.ItemTranslationManager
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.command.defaults.BukkitCommand
@@ -52,6 +53,13 @@ class FoliaMarketPlugin : JavaPlugin() {
         val timeoutMs = config.getLong("market.database.connection-timeout-ms", 10000L)
         databaseManager = DatabaseManager(dataFolder, poolSize, timeoutMs, logger)
         marketDao = MarketDao(databaseManager)
+
+        // 2.5 Initialize translation dictionary & backfill search index for existing items
+        ItemTranslationManager.load()
+        val backfilledCount = marketDao.backfillSearchIndexes(logger)
+        if (backfilledCount > 0) {
+            logger.info("既存出品 $backfilledCount 件の検索インデックスを日本語対応に自動更新しました。")
+        }
 
         // 3. Initialize economy
         economyService = EconomyService(this, logger)

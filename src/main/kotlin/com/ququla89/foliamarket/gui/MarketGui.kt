@@ -30,6 +30,7 @@ enum class GuiType {
     MARKET,
     MY_LISTINGS,
     CONFIRM_PURCHASE,
+    CONFIRM_CANCEL,
 }
 
 /**
@@ -84,6 +85,8 @@ class MarketGui(
         const val ACTION_BACK_TO_MARKET = "BACK_TO_MARKET"
         const val ACTION_BUY_CONFIRM = "BUY_CONFIRM"
         const val ACTION_BUY_CANCEL = "BUY_CANCEL"
+        const val ACTION_CANCEL_CONFIRM = "CANCEL_CONFIRM"
+        const val ACTION_CANCEL_ABORT = "CANCEL_ABORT"
         const val ACTION_ITEM_CLICK = "ITEM_CLICK"
         const val ACTION_BALANCE = "BALANCE"
         const val ACTION_SEARCH = "SEARCH"
@@ -265,6 +268,100 @@ class MarketGui(
                                     ).decoration(TextDecoration.ITALIC, false),
                             )
                             meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_BUY_CANCEL)
+                        }
+                    }
+                inventory.setItem(15, cancelItem)
+
+                player.openInventory(inventory)
+            }
+        }
+    }
+
+    /**
+     * Opens the listing cancellation confirmation dialog.
+     */
+    fun openConfirmCancelDialog(
+        player: Player,
+        itemId: Long,
+        page: Int = 0,
+    ) {
+        scheduler.runAsync {
+            val item = dao.getItemById(itemId)
+            if (item == null) {
+                scheduler.runAtEntity(player) {
+                    MessageUtil.send(player, "<red>商品が見つかりませんでした。</red>")
+                }
+                return@runAsync
+            }
+
+            scheduler.runAtEntity(player) {
+                val titleStr = config.getString("gui.confirm-cancel-title", "<gold>出品取り下げ確認</gold>")
+                val newHolder = MarketHolder(GuiType.CONFIRM_CANCEL, page, itemId)
+                val inventory = Bukkit.createInventory(newHolder, 27, MessageUtil.parse(titleStr))
+                newHolder.setInventory(inventory)
+
+                val filler = createFillerPane()
+                for (i in 0 until 27) {
+                    inventory.setItem(i, filler)
+                }
+
+                // Confirm cancel button (Slot 11)
+                val confirmItem =
+                    ItemStack(Material.ORANGE_CONCRETE).apply {
+                        editMeta { meta ->
+                            meta.displayName(
+                                MessageUtil
+                                    .parse(
+                                        config.getString(
+                                            "messages.gui-confirm-cancel-button",
+                                            "<gold><b>✔ 取り下げを確定する</b></gold>",
+                                        ),
+                                    ).decoration(TextDecoration.ITALIC, false),
+                            )
+                            val loreText = config.getString("messages.gui-confirm-cancel-lore", null)
+                            if (!loreText.isNullOrBlank()) {
+                                meta.lore(
+                                    listOf(
+                                        Component.empty(),
+                                        MessageUtil.parse(loreText).decoration(TextDecoration.ITALIC, false),
+                                        Component.empty(),
+                                    ),
+                                )
+                            }
+                            meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_CANCEL_CONFIRM)
+                            meta.persistentDataContainer.set(itemIdKey, PersistentDataType.LONG, itemId)
+                        }
+                    }
+                inventory.setItem(11, confirmItem)
+
+                // Preview item (Slot 13)
+                val preview = createItemDisplay(item, isOwnListing = true)
+                inventory.setItem(13, preview)
+
+                // Cancel abort button (Slot 15)
+                val cancelItem =
+                    ItemStack(Material.GRAY_CONCRETE).apply {
+                        editMeta { meta ->
+                            meta.displayName(
+                                MessageUtil
+                                    .parse(
+                                        config.getString(
+                                            "messages.gui-cancel-abort-button",
+                                            "<gray><b>✖ 戻る</b></gray>",
+                                        ),
+                                    ).decoration(TextDecoration.ITALIC, false),
+                            )
+                            val loreText = config.getString("messages.gui-cancel-abort-lore", null)
+                            if (!loreText.isNullOrBlank()) {
+                                meta.lore(
+                                    listOf(
+                                        Component.empty(),
+                                        MessageUtil.parse(loreText).decoration(TextDecoration.ITALIC, false),
+                                        Component.empty(),
+                                    ),
+                                )
+                            }
+                            meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_CANCEL_ABORT)
                         }
                     }
                 inventory.setItem(15, cancelItem)

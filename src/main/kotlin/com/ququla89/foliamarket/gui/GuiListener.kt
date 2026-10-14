@@ -125,12 +125,17 @@ class GuiListener(
                             return
                         }
 
-                        // Cancel own listing
-                        marketService.cancelListing(player, itemId).thenAccept { success ->
-                            if (success) {
-                                marketGui.openMyListings(player, holder.page)
+                        if (status == MarketItemStatus.EXPIRED) {
+                            marketService.cancelListing(player, itemId).thenAccept { success ->
+                                if (success) {
+                                    marketGui.openMyListings(player, holder.page)
+                                }
                             }
+                            return
                         }
+
+                        // Open confirmation dialog for active listings
+                        marketGui.openConfirmCancelDialog(player, itemId, holder.page)
                     } else if (holder.type == GuiType.MARKET) {
                         // Open confirmation dialog
                         marketGui.openConfirmDialog(player, itemId)
@@ -148,6 +153,22 @@ class GuiListener(
 
             MarketGui.ACTION_BUY_CANCEL -> {
                 marketGui.openMarket(player, 0, holder.sortMode, holder.searchKeyword)
+            }
+
+            MarketGui.ACTION_CANCEL_CONFIRM -> {
+                val targetId = holder.targetItemId ?: itemId
+                if (targetId != null) {
+                    player.closeInventory()
+                    marketService.cancelListing(player, targetId).thenAccept { success ->
+                        if (success) {
+                            marketGui.openMyListings(player, holder.page)
+                        }
+                    }
+                }
+            }
+
+            MarketGui.ACTION_CANCEL_ABORT -> {
+                marketGui.openMyListings(player, holder.page)
             }
         }
     }

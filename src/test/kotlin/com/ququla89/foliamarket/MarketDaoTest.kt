@@ -187,4 +187,80 @@ class MarketDaoTest {
         mode = mode.next()
         assertEquals(MarketSortMode.NEWEST, mode)
     }
+
+    @Test
+    fun testSearchByJapaneseKeywords() {
+        val now = System.currentTimeMillis()
+        val future = now + 1000000L
+
+        val diamondSword =
+            MarketItem(
+                sellerUuid = UUID.randomUUID(),
+                sellerName = "Steve",
+                itemName = "ダイヤモンドの剣 DIAMOND_SWORD DIAMOND SWORD diamond sword",
+                itemBytes = byteArrayOf(1),
+                price = 500.0,
+                listedAt = now,
+                expiresAt = future,
+                status = MarketItemStatus.ACTIVE,
+            )
+        val stonePickaxe =
+            MarketItem(
+                sellerUuid = UUID.randomUUID(),
+                sellerName = "Alex",
+                itemName = "丸石のツルハシ COBBLESTONE_PICKAXE cobblestone pickaxe",
+                itemBytes = byteArrayOf(2),
+                price = 30.0,
+                listedAt = now,
+                expiresAt = future,
+                status = MarketItemStatus.ACTIVE,
+            )
+
+        dao.insertItem(diamondSword)
+        dao.insertItem(stonePickaxe)
+
+        // Search by Japanese kanji / katakana
+        val searchByDia = dao.getActiveItems(0, 10, searchKeyword = "ダイヤ")
+        assertEquals(1, searchByDia.size)
+        assertTrue(searchByDia[0].itemName.contains("ダイヤモンドの剣"))
+
+        val searchBySword = dao.getActiveItems(0, 10, searchKeyword = "剣")
+        assertEquals(1, searchBySword.size)
+        assertEquals("Steve", searchBySword[0].sellerName)
+
+        val searchByTsuruhashi = dao.getActiveItems(0, 10, searchKeyword = "ツルハシ")
+        assertEquals(1, searchByTsuruhashi.size)
+        assertEquals("Alex", searchByTsuruhashi[0].sellerName)
+
+        // Search by English material keywords
+        val searchByEnglish = dao.getActiveItems(0, 10, searchKeyword = "diamond")
+        assertEquals(1, searchByEnglish.size)
+
+        // Search not matching
+        val searchNotFound = dao.getActiveItems(0, 10, searchKeyword = "ネザライト")
+        assertEquals(0, searchNotFound.size)
+    }
+
+    @Test
+    fun testUpdateItemName() {
+        val now = System.currentTimeMillis()
+        val item =
+            MarketItem(
+                sellerUuid = UUID.randomUUID(),
+                sellerName = "Trader",
+                itemName = "old_name",
+                itemBytes = byteArrayOf(1),
+                price = 100.0,
+                listedAt = now,
+                expiresAt = now + 100000L,
+                status = MarketItemStatus.ACTIVE,
+            )
+        val id = dao.insertItem(item)
+        val updated = dao.updateItemName(id, "ダイヤモンドの剣 DIAMOND_SWORD diamond sword")
+        assertTrue(updated)
+
+        val retrieved = dao.getItemById(id)
+        assertNotNull(retrieved)
+        assertEquals("ダイヤモンドの剣 DIAMOND_SWORD diamond sword", retrieved?.itemName)
+    }
 }

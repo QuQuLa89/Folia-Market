@@ -47,6 +47,9 @@ gui:
   # 購入確認画面のタイトル（MiniMessage形式）
   confirm-title: "<gradient:#f12711:#f5af19><bold>購入確認</bold></gradient>"
 
+  # 出品取り下げ確認画面のタイトル（MiniMessage形式）
+  confirm-cancel-title: "<gradient:#f12711:#f5af19><bold>出品取り下げ確認</bold></gradient>"
+
   # GUIの自動更新インターバル（秒単位）。0に設定すると定期更新を停止します。
   refresh-interval-seconds: 5
 
@@ -104,3 +107,7 @@ messages:
   gui-balance-lore: "<yellow>残高: <white><b>{balance} {currency}</b></white></yellow>"
   gui-confirm-buy-button: "<green><b>✔ 購入を確定する</b></green>"
   gui-cancel-buy-button: "<red><b>✖ キャンセル</b></red>"
+  gui-confirm-cancel-button: "<gold><b>✔ 取り下げを確定する</b></gold>"
+  gui-cancel-abort-button: "<gray><b>✖ 戻る</b></gray>"
+  gui-confirm-cancel-lore: "<gray>クリックすると出品を取り下げて手元に回収します</gray>"
+  gui-cancel-abort-lore: "<gray>取り下げをやめて出品一覧に戻ります</gray>"

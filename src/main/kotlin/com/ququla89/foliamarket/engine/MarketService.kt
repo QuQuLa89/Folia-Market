@@ -6,8 +6,8 @@ import com.ququla89.foliamarket.database.model.MarketItemStatus
 import com.ququla89.foliamarket.economy.EconomyService
 import com.ququla89.foliamarket.scheduler.SchedulerAdapter
 import com.ququla89.foliamarket.util.ItemSerializer
+import com.ququla89.foliamarket.util.ItemTranslationManager
 import com.ququla89.foliamarket.util.MessageUtil
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.configuration.file.FileConfiguration
@@ -104,12 +104,13 @@ class MarketService(
                 val expiresAt = now + durationHours * 3600 * 1000L
                 val bytes = ItemSerializer.toByteArray(itemToSell)
                 val displayName = getItemDisplayName(itemToSell)
+                val searchIndex = ItemTranslationManager.buildSearchIndex(itemToSell)
 
                 val marketItem =
                     MarketItem(
                         sellerUuid = player.uniqueId,
                         sellerName = player.name,
-                        itemName = displayName,
+                        itemName = searchIndex,
                         itemBytes = bytes,
                         price = price,
                         listedAt = now,
@@ -393,15 +394,7 @@ class MarketService(
         return false
     }
 
-    private fun getItemDisplayName(item: ItemStack): String {
-        val meta = item.itemMeta
-        if (meta != null && meta.hasDisplayName()) {
-            return PlainTextComponentSerializer.plainText().serialize(meta.displayName()!!)
-        }
-        return item.type.name
-            .lowercase()
-            .replace('_', ' ')
-    }
+    private fun getItemDisplayName(item: ItemStack): String = ItemTranslationManager.getDisplayName(item)
 
     private fun getPrefix(): String = config.getString("messages.prefix", "") ?: ""
 }
