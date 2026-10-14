@@ -89,10 +89,11 @@ class FoliaMarketPlugin : JavaPlugin() {
                     delayTicks = refreshTicks,
                 ) {
                     for (player in Bukkit.getOnlinePlayers()) {
-                        val topInv = player.openInventory.topInventory
-                        val holder = topInv.holder
-                        if (holder is MarketHolder && holder.type == GuiType.MARKET) {
-                            schedulerAdapter.runAtEntity(player) {
+                        schedulerAdapter.runAtEntity(player) {
+                            if (!player.isOnline) return@runAtEntity
+                            val topInv = player.openInventory.topInventory
+                            val holder = topInv.holder
+                            if (holder is MarketHolder && holder.type == GuiType.MARKET) {
                                 marketGui.openMarket(player, holder.page)
                             }
                         }
