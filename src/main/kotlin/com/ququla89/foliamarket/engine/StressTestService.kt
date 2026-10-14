@@ -265,9 +265,11 @@ class StressTestService(
                 result.isPassed -> {
                     "<green><b>[PASSED]</b> 排他制御成功 (アイテム増殖ゼロ / 勝者: <white>${result.winnerName ?: "不明"}</white>)</green>"
                 }
+
                 result.isDupeDetected -> {
                     "<red><b>[CRITICAL ERROR]</b> DUPE DETECTED! 増殖バグ検知 (<white>${result.successCount}</white> 件の同時購入が成立)</red>"
                 }
+
                 else -> {
                     "<gold><b>[FAILED]</b> 購入成功者なし (商品が既に売り切れていたか無効です)</gold>"
                 }
