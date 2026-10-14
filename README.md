@@ -44,6 +44,7 @@
 | `/market sell <価格>` | メインハンドに持っているアイテムを指定価格で出品します。 | `foliamarket.sell` |
 | `/market listings` (別名: `/market my`) | 自分が出品した商品の一覧を開き、出品を取り下げることができます。 | `foliamarket.use` |
 | `/market reload` | `config.yml` を再読み込みします。 | `foliamarket.admin` |
+| `/market debug stress <出品ID> [スレッド数]` | 指定した出品に対して複数スレッドによる並行購入ストレステストを実行し、CAS 排他制御とアイテム増殖（Dupe）ゼロを検証します。 | `foliamarket.admin` |
 
 ---
 

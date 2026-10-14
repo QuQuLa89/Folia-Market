@@ -190,6 +190,43 @@ class MarketDao(
         }
     }
 
+    /**
+     * Retrieves IDs of active non-expired listings for tab completion.
+     */
+    fun getActiveItemIds(limit: Int = 50): List<Long> {
+        val now = System.currentTimeMillis()
+        val sql =
+            """
+            SELECT id FROM market_items
+            WHERE status = 'ACTIVE' AND expires_at > ?
+            ORDER BY id DESC
+            LIMIT ?
+            """.trimIndent()
+
+        val list = ArrayList<Long>(limit)
+        databaseManager.getConnection().use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setLong(1, now)
+                stmt.setInt(2, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        list.add(rs.getLong("id"))
+                    }
+                }
+            }
+        }
+        return list
+    }
+
+    /**
+     * Atomically updates status using Compare-And-Swap (CAS) with string parameters.
+     */
+    fun updateItemStatusCas(
+        id: Long,
+        fromStatus: String,
+        toStatus: String,
+    ): Boolean = casUpdateStatus(id, MarketItemStatus.valueOf(fromStatus), MarketItemStatus.valueOf(toStatus))
+
     private fun mapRow(rs: ResultSet): MarketItem =
         MarketItem(
             id = rs.getLong("id"),

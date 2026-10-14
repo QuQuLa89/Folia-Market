@@ -5,6 +5,7 @@ import com.ququla89.foliamarket.database.DatabaseManager
 import com.ququla89.foliamarket.database.MarketDao
 import com.ququla89.foliamarket.economy.EconomyService
 import com.ququla89.foliamarket.engine.MarketService
+import com.ququla89.foliamarket.engine.StressTestService
 import com.ququla89.foliamarket.gui.GuiListener
 import com.ququla89.foliamarket.gui.GuiType
 import com.ququla89.foliamarket.gui.MarketGui
@@ -26,6 +27,7 @@ class FoliaMarketPlugin : JavaPlugin() {
     private lateinit var marketDao: MarketDao
     private lateinit var economyService: EconomyService
     private lateinit var marketService: MarketService
+    private lateinit var stressTestService: StressTestService
     private lateinit var marketGui: MarketGui
     private var isFoliaPlatform: Boolean = false
     private var expirationTaskHandle: AutoCloseable? = null
@@ -56,6 +58,7 @@ class FoliaMarketPlugin : JavaPlugin() {
 
         // 4. Initialize transaction engine & GUI
         marketService = MarketService(marketDao, economyService, schedulerAdapter, config, logger)
+        stressTestService = StressTestService(this, marketDao, schedulerAdapter, logger)
         marketGui = MarketGui(this, marketDao, economyService, schedulerAdapter, config)
 
         // 5. Register GUI event listener
@@ -127,6 +130,8 @@ class FoliaMarketPlugin : JavaPlugin() {
             MarketCommand(
                 plugin = this,
                 marketService = marketService,
+                stressTestService = stressTestService,
+                marketDao = marketDao,
                 marketGui = marketGui,
                 config = config,
                 reloadCallback = { reloadPlugin() },
@@ -136,7 +141,7 @@ class FoliaMarketPlugin : JavaPlugin() {
             object : BukkitCommand(
                 "market",
                 "FoliaMarket のメインコマンドです。",
-                "/market [sell <価格>|listings|reload]",
+                "/market [sell <価格>|listings|reload|debug stress <ID>]",
                 listOf("foliamarket", "fm"),
             ) {
                 override fun execute(
