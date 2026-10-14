@@ -103,11 +103,13 @@ class MarketService(
                 val now = System.currentTimeMillis()
                 val expiresAt = now + durationHours * 3600 * 1000L
                 val bytes = ItemSerializer.toByteArray(itemToSell)
+                val displayName = getItemDisplayName(itemToSell)
 
                 val marketItem =
                     MarketItem(
                         sellerUuid = player.uniqueId,
                         sellerName = player.name,
+                        itemName = displayName,
                         itemBytes = bytes,
                         price = price,
                         listedAt = now,
@@ -125,7 +127,6 @@ class MarketService(
                     return@runAsync
                 }
 
-                val displayName = getItemDisplayName(itemToSell)
                 scheduler.runAtEntity(player) {
                     MessageUtil.send(
                         player,

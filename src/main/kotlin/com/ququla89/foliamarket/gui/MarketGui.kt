@@ -3,6 +3,7 @@ package com.ququla89.foliamarket.gui
 import com.ququla89.foliamarket.database.MarketDao
 import com.ququla89.foliamarket.database.model.MarketItem
 import com.ququla89.foliamarket.database.model.MarketItemStatus
+import com.ququla89.foliamarket.database.model.MarketSortMode
 import com.ququla89.foliamarket.economy.EconomyService
 import com.ququla89.foliamarket.scheduler.SchedulerAdapter
 import com.ququla89.foliamarket.util.ItemSerializer
@@ -38,6 +39,8 @@ class MarketHolder(
     val type: GuiType,
     var page: Int = 0,
     var targetItemId: Long? = null,
+    var sortMode: MarketSortMode = MarketSortMode.NEWEST,
+    var searchKeyword: String? = null,
 ) : InventoryHolder {
     private var inv: Inventory? = null
 
@@ -69,7 +72,9 @@ class MarketGui(
         const val PAGE_SIZE = 45
         const val PREV_SLOT = 45
         const val BALANCE_SLOT = 47
+        const val SEARCH_SLOT = 48
         const val MY_LISTINGS_SLOT = 49
+        const val SORT_SLOT = 51
         const val NEXT_SLOT = 53
 
         // Actions
@@ -81,6 +86,9 @@ class MarketGui(
         const val ACTION_BUY_CANCEL = "BUY_CANCEL"
         const val ACTION_ITEM_CLICK = "ITEM_CLICK"
         const val ACTION_BALANCE = "BALANCE"
+        const val ACTION_SEARCH = "SEARCH"
+        const val ACTION_SEARCH_CLEAR = "SEARCH_CLEAR"
+        const val ACTION_SORT = "SORT"
     }
 
     fun reloadConfig(newConfig: FileConfiguration) {
@@ -102,32 +110,58 @@ class MarketGui(
     fun openMarket(
         player: Player,
         page: Int = 0,
+        sortMode: MarketSortMode = MarketSortMode.NEWEST,
+        searchKeyword: String? = null,
     ) {
         scheduler.runAsync {
-            val totalActive = dao.countActiveItems()
+            val totalActive = dao.countActiveItems(searchKeyword)
             val totalPages = ((totalActive - 1) / PAGE_SIZE).coerceAtLeast(0)
             val validPage = page.coerceIn(0, totalPages)
-            val items = dao.getActiveItems(validPage * PAGE_SIZE, PAGE_SIZE)
+            val items = dao.getActiveItems(validPage * PAGE_SIZE, PAGE_SIZE, sortMode, searchKeyword)
 
             scheduler.runAtEntity(player) {
                 val currentTop = player.openInventory.topInventory
                 val holder = currentTop.holder
                 val inventory: Inventory
 
-                val isReusing = holder is MarketHolder && holder.type == GuiType.MARKET
+                val isReusing =
+                    holder is MarketHolder && holder.type == GuiType.MARKET && holder.searchKeyword == searchKeyword
                 if (isReusing) {
                     inventory = currentTop
                     holder.page = validPage
+                    holder.sortMode = sortMode
                 } else {
-                    val newHolder = MarketHolder(GuiType.MARKET, validPage)
-                    val titleStr = config.getString("gui.title", "<gradient:#2b5876:#4e4376>マーケットプレイス</gradient>")
-                    val title = MessageUtil.parse(titleStr)
+                    val newHolder =
+                        MarketHolder(
+                            type = GuiType.MARKET,
+                            page = validPage,
+                            sortMode = sortMode,
+                            searchKeyword = searchKeyword,
+                        )
+                    val titleStr =
+                        if (!searchKeyword.isNullOrBlank()) {
+                            config.getString(
+                                "gui.search-title",
+                                "<gradient:#2b5876:#4e4376><bold>検索: </bold><yellow>{keyword}</yellow></gradient>",
+                            )
+                        } else {
+                            config.getString("gui.title", "<gradient:#2b5876:#4e4376><bold>マーケットプレイス</bold></gradient>")
+                        }
+                    val title = MessageUtil.parse(titleStr, mapOf("keyword" to (searchKeyword ?: "")))
                     inventory = Bukkit.createInventory(newHolder, 54, title)
                     newHolder.setInventory(inventory)
                     playerSlotState[player] = ConcurrentHashMap()
                 }
 
-                applyDifferentialMarketSlots(player, inventory, items, validPage, validPage < totalPages)
+                applyDifferentialMarketSlots(
+                    player = player,
+                    inventory = inventory,
+                    items = items,
+                    page = validPage,
+                    hasNextPage = validPage < totalPages,
+                    sortMode = sortMode,
+                    searchKeyword = searchKeyword,
+                )
 
                 if (!isReusing) {
                     player.openInventory(inventory)
@@ -249,6 +283,8 @@ class MarketGui(
         items: List<MarketItem>,
         page: Int,
         hasNextPage: Boolean,
+        sortMode: MarketSortMode,
+        searchKeyword: String?,
     ) {
         val slotMap = playerSlotState.getOrPut(player) { ConcurrentHashMap() }
 
@@ -268,7 +304,15 @@ class MarketGui(
             }
         }
 
-        fillNavigationRow(player, inventory, page, hasNextPage, isMyListings = false)
+        fillNavigationRow(
+            player = player,
+            inventory = inventory,
+            page = page,
+            hasNextPage = hasNextPage,
+            isMyListings = false,
+            sortMode = sortMode,
+            searchKeyword = searchKeyword,
+        )
     }
 
     private fun fillNavigationRow(
@@ -277,6 +321,8 @@ class MarketGui(
         page: Int,
         hasNextPage: Boolean,
         isMyListings: Boolean,
+        sortMode: MarketSortMode = MarketSortMode.NEWEST,
+        searchKeyword: String? = null,
     ) {
         val filler = createFillerPane()
         val navSlots = intArrayOf(45, 46, 47, 48, 49, 50, 51, 52, 53)
@@ -284,7 +330,7 @@ class MarketGui(
             inventory.setItem(slot, filler)
         }
 
-        // Previous button
+        // Previous button (Slot 45)
         if (page > 0) {
             val prevItem =
                 ItemStack(Material.ARROW).apply {
@@ -292,7 +338,7 @@ class MarketGui(
                         meta.displayName(
                             MessageUtil
                                 .parse(
-                                    config.getString("messages.gui-prev-page", "<aqua>◀ 前のページ</aqua>"),
+                                    config.getString("messages.gui-prev-page", "<aqua>◀ 前のページ ({page})</aqua>"),
                                     mapOf("page" to page.toString()),
                                 ).decoration(TextDecoration.ITALIC, false),
                         )
@@ -302,10 +348,15 @@ class MarketGui(
             inventory.setItem(PREV_SLOT, prevItem)
         }
 
-        // Player balance display
+        // Player balance display (Slot 47)
         inventory.setItem(BALANCE_SLOT, createBalanceDisplay(player))
 
-        // Center button: My Listings or Back to Market
+        if (!isMyListings) {
+            // Search / Clear Search button (Slot 48)
+            inventory.setItem(SEARCH_SLOT, createSearchDisplay(searchKeyword))
+        }
+
+        // Center button: My Listings or Back to Market (Slot 49)
         if (isMyListings) {
             val backItem =
                 ItemStack(Material.OAK_DOOR).apply {
@@ -334,9 +385,12 @@ class MarketGui(
                     }
                 }
             inventory.setItem(MY_LISTINGS_SLOT, myListingsItem)
+
+            // Sort button (Slot 51)
+            inventory.setItem(SORT_SLOT, createSortDisplay(sortMode))
         }
 
-        // Next button
+        // Next button (Slot 53)
         if (hasNextPage) {
             val nextItem =
                 ItemStack(Material.ARROW).apply {
@@ -344,7 +398,7 @@ class MarketGui(
                         meta.displayName(
                             MessageUtil
                                 .parse(
-                                    config.getString("messages.gui-next-page", "<aqua>次のページ ▶</aqua>"),
+                                    config.getString("messages.gui-next-page", "<aqua>次のページ ({page}) ▶</aqua>"),
                                     mapOf("page" to (page + 2).toString()),
                                 ).decoration(TextDecoration.ITALIC, false),
                         )
@@ -354,6 +408,103 @@ class MarketGui(
             inventory.setItem(NEXT_SLOT, nextItem)
         }
     }
+
+    private fun createSearchDisplay(searchKeyword: String?): ItemStack =
+        if (searchKeyword.isNullOrBlank()) {
+            ItemStack(Material.SPYGLASS).apply {
+                editMeta { meta ->
+                    meta.displayName(
+                        MessageUtil
+                            .parse(
+                                config.getString("messages.gui-search-button", "<aqua><b>🔍 商品を検索</b></aqua>"),
+                            ).decoration(TextDecoration.ITALIC, false),
+                    )
+                    meta.lore(
+                        listOf(
+                            Component.empty(),
+                            MessageUtil
+                                .parse(
+                                    config.getString("messages.gui-search-button-lore", "<gray>クリックしてチャットに検索コマンドを入力</gray>"),
+                                ).decoration(TextDecoration.ITALIC, false),
+                            Component.empty(),
+                        ),
+                    )
+                    meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_SEARCH)
+                }
+            }
+        } else {
+            ItemStack(Material.BARRIER).apply {
+                editMeta { meta ->
+                    meta.displayName(
+                        MessageUtil
+                            .parse(
+                                config.getString("messages.gui-search-clear-button", "<red><b>❌ 検索を解除</b></red>"),
+                            ).decoration(TextDecoration.ITALIC, false),
+                    )
+                    meta.lore(
+                        listOf(
+                            Component.empty(),
+                            MessageUtil
+                                .parse(
+                                    config.getString(
+                                        "messages.gui-search-current",
+                                        "<gray>現在の検索条件: <yellow>{keyword}</yellow></gray>",
+                                    ),
+                                    mapOf("keyword" to searchKeyword),
+                                ).decoration(TextDecoration.ITALIC, false),
+                            MessageUtil
+                                .parse(
+                                    config.getString(
+                                        "messages.gui-search-clear-info",
+                                        "<yellow>▶ クリックして全件表示に戻る</yellow>",
+                                    ),
+                                ).decoration(TextDecoration.ITALIC, false),
+                            Component.empty(),
+                        ),
+                    )
+                    meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_SEARCH_CLEAR)
+                }
+            }
+        }
+
+    private fun createSortDisplay(sortMode: MarketSortMode): ItemStack =
+        ItemStack(Material.HOPPER).apply {
+            editMeta { meta ->
+                meta.displayName(
+                    MessageUtil
+                        .parse(
+                            config.getString("messages.gui-sort-title", "<gold><b>🧭 並び替え</b></gold>"),
+                        ).decoration(TextDecoration.ITALIC, false),
+                )
+                val lore = mutableListOf<Component>()
+                lore.add(Component.empty())
+                for (mode in MarketSortMode.entries) {
+                    if (mode == sortMode) {
+                        lore.add(
+                            MessageUtil
+                                .parse("<green><b>✔ ${mode.displayName}</b></green>")
+                                .decoration(TextDecoration.ITALIC, false),
+                        )
+                    } else {
+                        lore.add(
+                            MessageUtil
+                                .parse("<dark_gray>  ${mode.displayName}</dark_gray>")
+                                .decoration(TextDecoration.ITALIC, false),
+                        )
+                    }
+                }
+                lore.add(Component.empty())
+                lore.add(
+                    MessageUtil
+                        .parse(
+                            config.getString("messages.gui-sort-click-info", "<yellow>▶ クリックしてソート順を切り替える</yellow>"),
+                        ).decoration(TextDecoration.ITALIC, false),
+                )
+                lore.add(Component.empty())
+                meta.lore(lore)
+                meta.persistentDataContainer.set(actionKey, PersistentDataType.STRING, ACTION_SORT)
+            }
+        }
 
     private fun createBalanceDisplay(player: Player): ItemStack {
         val balance = economyService.getBalance(player)

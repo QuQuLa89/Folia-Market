@@ -62,7 +62,7 @@ class GuiListener(
                 if (holder.type == GuiType.MY_LISTINGS) {
                     marketGui.openMyListings(player, holder.page - 1)
                 } else {
-                    marketGui.openMarket(player, holder.page - 1)
+                    marketGui.openMarket(player, holder.page - 1, holder.sortMode, holder.searchKeyword)
                 }
             }
 
@@ -70,7 +70,7 @@ class GuiListener(
                 if (holder.type == GuiType.MY_LISTINGS) {
                     marketGui.openMyListings(player, holder.page + 1)
                 } else {
-                    marketGui.openMarket(player, holder.page + 1)
+                    marketGui.openMarket(player, holder.page + 1, holder.sortMode, holder.searchKeyword)
                 }
             }
 
@@ -79,11 +79,34 @@ class GuiListener(
             }
 
             MarketGui.ACTION_BACK_TO_MARKET -> {
-                marketGui.openMarket(player, 0)
+                marketGui.openMarket(player, 0, holder.sortMode, holder.searchKeyword)
             }
 
             MarketGui.ACTION_BALANCE -> {
                 player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.5f, 1.0f)
+            }
+
+            MarketGui.ACTION_SORT -> {
+                val nextMode = holder.sortMode.next()
+                player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.5f, 1.2f)
+                marketGui.openMarket(player, 0, nextMode, holder.searchKeyword)
+            }
+
+            MarketGui.ACTION_SEARCH -> {
+                player.closeInventory()
+                player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.5f, 1.0f)
+                val searchGuide =
+                    marketGui.getMessage(
+                        "messages.search-guide",
+                        "<yellow>検索したいアイテム名または出品者名を指定してください: </yellow><click:suggest_command:'/market search '><aqua><u>[/market search <キーワード>]</u></aqua></click>",
+                    )
+                val prefix = marketGui.getMessage("messages.prefix", "")
+                MessageUtil.send(player, searchGuide, prefix = prefix)
+            }
+
+            MarketGui.ACTION_SEARCH_CLEAR -> {
+                player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.5f, 0.8f)
+                marketGui.openMarket(player, 0, holder.sortMode, searchKeyword = null)
             }
 
             MarketGui.ACTION_ITEM_CLICK -> {
@@ -124,7 +147,7 @@ class GuiListener(
             }
 
             MarketGui.ACTION_BUY_CANCEL -> {
-                marketGui.openMarket(player, 0)
+                marketGui.openMarket(player, 0, holder.sortMode, holder.searchKeyword)
             }
         }
     }

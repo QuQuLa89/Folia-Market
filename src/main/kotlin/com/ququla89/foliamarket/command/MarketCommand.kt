@@ -1,6 +1,7 @@
 package com.ququla89.foliamarket.command
 
 import com.ququla89.foliamarket.database.MarketDao
+import com.ququla89.foliamarket.database.model.MarketSortMode
 import com.ququla89.foliamarket.engine.MarketService
 import com.ququla89.foliamarket.engine.StressTestService
 import com.ququla89.foliamarket.gui.MarketGui
@@ -85,6 +86,38 @@ class MarketCommand(
                 }
 
                 marketService.listItem(sender, price)
+                return true
+            }
+
+            "search", "s" -> {
+                if (sender !is Player) {
+                    MessageUtil.send(sender, config.getString("messages.player-only", "<red>プレイヤーのみ実行可能です。</red>"), prefix = prefix)
+                    return true
+                }
+                if (!sender.hasPermission("foliamarket.use")) {
+                    MessageUtil.send(sender, config.getString("messages.no-permission", "<red>権限がありません。</red>"), prefix = prefix)
+                    return true
+                }
+                if (args.size < 2) {
+                    MessageUtil.send(
+                        sender,
+                        config.getString("messages.search-usage", "<yellow>使用方法: /$label search <キーワード></yellow>"),
+                        prefix = prefix,
+                    )
+                    return true
+                }
+
+                val keyword = args.drop(1).joinToString(" ").trim()
+                if (keyword.isEmpty()) {
+                    MessageUtil.send(
+                        sender,
+                        config.getString("messages.search-usage", "<yellow>使用方法: /$label search <キーワード></yellow>"),
+                        prefix = prefix,
+                    )
+                    return true
+                }
+
+                marketGui.openMarket(sender, page = 0, sortMode = MarketSortMode.NEWEST, searchKeyword = keyword)
                 return true
             }
 
@@ -191,6 +224,7 @@ class MarketCommand(
                     sender,
                     "<gradient:#00b4db:#0083b0><b>[FoliaMarket]</b></gradient> コマンドヘルプ:\n" +
                         "<gray>- </gray><yellow>/$label</yellow><gray>: マーケットプレイスを開きます</gray>\n" +
+                        "<gray>- </gray><yellow>/$label search <キーワード></yellow><gray>: アイテムまたは出品者を検索します</gray>\n" +
                         "<gray>- </gray><yellow>/$label sell <価格></yellow><gray>: 手持ちのアイテムを出品します</gray>\n" +
                         "<gray>- </gray><yellow>/$label listings</yellow><gray>: 自分の出品一覧を開きます</gray>\n" +
                         "<gray>- </gray><yellow>/$label reload</yellow><gray>: 設定ファイルを再読み込みします</gray>$adminHelp",
@@ -212,6 +246,7 @@ class MarketCommand(
             val suggestions = mutableListOf<String>()
             if (sender.hasPermission("foliamarket.use")) {
                 suggestions.add("listings")
+                suggestions.add("search")
             }
             if (sender.hasPermission("foliamarket.sell")) {
                 suggestions.add("sell")

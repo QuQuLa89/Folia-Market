@@ -38,6 +38,9 @@ gui:
   # マーケットプレイスのタイトル（MiniMessage形式）
   title: "<gradient:#2b5876:#4e4376><bold>マーケットプレイス</bold></gradient>"
 
+  # 検索結果画面のタイトル（MiniMessage形式、{keyword} は検索語に置換されます）
+  search-title: "<gradient:#2b5876:#4e4376><bold>検索: </bold><yellow>{keyword}</yellow></gradient>"
+
   # 自身の出品一覧画面のタイトル（MiniMessage形式）
   my-listings-title: "<gradient:#11998e:#38ef7d><bold>あなたの出品一覧</bold></gradient>"
 
@@ -59,6 +62,8 @@ messages:
   price-out-of-range: "<red>出品価格は {min} 以上 {max} 以下で指定してください。</red>"
   air-item: "<red>手に持っているアイテムを出品してください。（空気は出品できません）</red>"
   max-listings-reached: "<red>出品上限数（最大 {max} 件）に達しています。</red>"
+  search-usage: "<yellow>使用方法: /market search <キーワード></yellow>"
+  search-guide: "<yellow>検索したいアイテム名または出品者名をチャットに入力してください: </yellow><click:suggest_command:'/market search '><aqua><u>[/market search <キーワード>]</u></aqua></click>"
 
   # 出品関連
   listing-success: "<green><b>{item}</b> を <gold>{price} {currency}</gold> で出品しました！（手数料率: {tax}%）</green>"
@@ -86,6 +91,14 @@ messages:
   gui-next-page: "<aqua>次のページ ({page}) ▶</aqua>"
   gui-my-listings-button: "<gold>★ 自分の出品を確認する</gold>"
   gui-back-to-market: "<yellow>◀ マーケットへ戻る</yellow>"
+  # GUI内の検索・ソートボタン設定
+  gui-search-button: "<aqua><b>🔍 商品を検索</b></aqua>"
+  gui-search-button-lore: "<gray>クリックしてチャットに検索コマンドを入力</gray>"
+  gui-search-clear-button: "<red><b>❌ 検索を解除</b></red>"
+  gui-search-current: "<gray>現在の検索条件: <yellow>{keyword}</yellow></gray>"
+  gui-search-clear-info: "<yellow>▶ クリックして全件表示に戻る</yellow>"
+  gui-sort-title: "<gold><b>🧭 並び替え</b></gold>"
+  gui-sort-click-info: "<yellow>▶ クリックしてソート順を切り替える</yellow>"
   # GUI内の所持金表示設定
   gui-balance-title: "<gold><b>💰 あなたの所持金</b></gold>"
   gui-balance-lore: "<yellow>残高: <white><b>{balance} {currency}</b></white></yellow>"

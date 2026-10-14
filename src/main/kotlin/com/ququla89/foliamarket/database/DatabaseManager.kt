@@ -54,6 +54,7 @@ class DatabaseManager(
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         seller_uuid TEXT NOT NULL,
                         seller_name TEXT NOT NULL,
+                        item_name TEXT NOT NULL DEFAULT '',
                         item_bytes BLOB NOT NULL,
                         price REAL NOT NULL,
                         listed_at INTEGER NOT NULL,
@@ -62,6 +63,24 @@ class DatabaseManager(
                     );
                     """.trimIndent(),
                 )
+            }
+
+            var hasItemNameColumn = false
+            conn.createStatement().use { pragmaStmt ->
+                pragmaStmt.executeQuery("PRAGMA table_info(market_items)").use { rs ->
+                    while (rs.next()) {
+                        if (rs.getString("name").equals("item_name", ignoreCase = true)) {
+                            hasItemNameColumn = true
+                            break
+                        }
+                    }
+                }
+            }
+
+            conn.createStatement().use { stmt ->
+                if (!hasItemNameColumn) {
+                    stmt.executeUpdate("ALTER TABLE market_items ADD COLUMN item_name TEXT NOT NULL DEFAULT '';")
+                }
 
                 stmt.executeUpdate(
                     """
@@ -74,6 +93,13 @@ class DatabaseManager(
                     """
                     CREATE INDEX IF NOT EXISTS idx_market_items_seller
                     ON market_items(seller_uuid, status);
+                    """.trimIndent(),
+                )
+
+                stmt.executeUpdate(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_market_items_name
+                    ON market_items(item_name);
                     """.trimIndent(),
                 )
             }

@@ -94,7 +94,7 @@ class FoliaMarketPlugin : JavaPlugin() {
                             val topInv = player.openInventory.topInventory
                             val holder = topInv.holder
                             if (holder is MarketHolder && holder.type == GuiType.MARKET) {
-                                marketGui.openMarket(player, holder.page)
+                                marketGui.openMarket(player, holder.page, holder.sortMode, holder.searchKeyword)
                             }
                         }
                     }
@@ -142,7 +142,7 @@ class FoliaMarketPlugin : JavaPlugin() {
             object : BukkitCommand(
                 "market",
                 "FoliaMarket のメインコマンドです。",
-                "/market [sell <価格>|listings|reload|debug stress <ID>]",
+                "/market [search <キーワード>|sell <価格>|listings|reload|debug stress <ID>]",
                 listOf("foliamarket", "fm"),
             ) {
                 override fun execute(

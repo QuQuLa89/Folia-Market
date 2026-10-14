@@ -2,6 +2,7 @@ package com.ququla89.foliamarket.database
 
 import com.ququla89.foliamarket.database.model.MarketItem
 import com.ququla89.foliamarket.database.model.MarketItemStatus
+import com.ququla89.foliamarket.database.model.MarketSortMode
 import java.sql.ResultSet
 import java.sql.Statement
 import java.util.UUID
@@ -19,19 +20,20 @@ class MarketDao(
         val sql =
             """
             INSERT INTO market_items (
-                seller_uuid, seller_name, item_bytes, price, listed_at, expires_at, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                seller_uuid, seller_name, item_name, item_bytes, price, listed_at, expires_at, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
 
         databaseManager.getConnection().use { conn ->
             conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { stmt ->
                 stmt.setString(1, item.sellerUuid.toString())
                 stmt.setString(2, item.sellerName)
-                stmt.setBytes(3, item.itemBytes)
-                stmt.setDouble(4, item.price)
-                stmt.setLong(5, item.listedAt)
-                stmt.setLong(6, item.expiresAt)
-                stmt.setString(7, item.status.name)
+                stmt.setString(3, item.itemName)
+                stmt.setBytes(4, item.itemBytes)
+                stmt.setDouble(5, item.price)
+                stmt.setLong(6, item.listedAt)
+                stmt.setLong(7, item.expiresAt)
+                stmt.setString(8, item.status.name)
 
                 stmt.executeUpdate()
                 val rs = stmt.generatedKeys
@@ -56,27 +58,48 @@ class MarketDao(
     }
 
     /**
-     * Fetches active non-expired listings with pagination.
+     * Fetches active non-expired listings with pagination, sorting, and optional search keyword.
      */
     fun getActiveItems(
         offset: Int,
         limit: Int,
+        sortMode: MarketSortMode = MarketSortMode.NEWEST,
+        searchKeyword: String? = null,
     ): List<MarketItem> {
         val now = System.currentTimeMillis()
+        val keyword = searchKeyword?.trim()?.takeIf { it.isNotEmpty() }
         val sql =
-            """
-            SELECT * FROM market_items
-            WHERE status = 'ACTIVE' AND expires_at > ?
-            ORDER BY listed_at DESC
-            LIMIT ? OFFSET ?
-            """.trimIndent()
+            if (keyword != null) {
+                """
+                SELECT * FROM market_items
+                WHERE status = 'ACTIVE' AND expires_at > ?
+                  AND (item_name LIKE ? OR seller_name LIKE ?)
+                ORDER BY ${sortMode.orderByClause}
+                LIMIT ? OFFSET ?
+                """.trimIndent()
+            } else {
+                """
+                SELECT * FROM market_items
+                WHERE status = 'ACTIVE' AND expires_at > ?
+                ORDER BY ${sortMode.orderByClause}
+                LIMIT ? OFFSET ?
+                """.trimIndent()
+            }
 
         val list = ArrayList<MarketItem>(limit)
         databaseManager.getConnection().use { conn ->
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setLong(1, now)
-                stmt.setInt(2, limit)
-                stmt.setInt(3, offset)
+                if (keyword != null) {
+                    val pattern = "%$keyword%"
+                    stmt.setString(2, pattern)
+                    stmt.setString(3, pattern)
+                    stmt.setInt(4, limit)
+                    stmt.setInt(5, offset)
+                } else {
+                    stmt.setInt(2, limit)
+                    stmt.setInt(3, offset)
+                }
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         list.add(mapRow(rs))
@@ -88,14 +111,26 @@ class MarketDao(
     }
 
     /**
-     * Counts the total number of active non-expired listings.
+     * Counts the total number of active non-expired listings, optionally filtered by keyword.
      */
-    fun countActiveItems(): Int {
+    fun countActiveItems(searchKeyword: String? = null): Int {
         val now = System.currentTimeMillis()
-        val sql = "SELECT COUNT(*) FROM market_items WHERE status = 'ACTIVE' AND expires_at > ?"
+        val keyword = searchKeyword?.trim()?.takeIf { it.isNotEmpty() }
+        val sql =
+            if (keyword != null) {
+                "SELECT COUNT(*) FROM market_items WHERE status = 'ACTIVE' AND expires_at > ? AND (item_name LIKE ? OR seller_name LIKE ?)"
+            } else {
+                "SELECT COUNT(*) FROM market_items WHERE status = 'ACTIVE' AND expires_at > ?"
+            }
+
         databaseManager.getConnection().use { conn ->
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setLong(1, now)
+                if (keyword != null) {
+                    val pattern = "%$keyword%"
+                    stmt.setString(2, pattern)
+                    stmt.setString(3, pattern)
+                }
                 stmt.executeQuery().use { rs ->
                     return if (rs.next()) rs.getInt(1) else 0
                 }
@@ -232,6 +267,7 @@ class MarketDao(
             id = rs.getLong("id"),
             sellerUuid = UUID.fromString(rs.getString("seller_uuid")),
             sellerName = rs.getString("seller_name"),
+            itemName = rs.getString("item_name") ?: "",
             itemBytes = rs.getBytes("item_bytes"),
             price = rs.getDouble("price"),
             listedAt = rs.getLong("listed_at"),
