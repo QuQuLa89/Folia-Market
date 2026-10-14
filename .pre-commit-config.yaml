@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ktlint-check
+        name: Kotlinコードの書式を検証します
+        entry: cmd /c gradlew.bat ktlintCheck
+        language: system
+        pass_filenames: false
+        files: '\.kts?$'
