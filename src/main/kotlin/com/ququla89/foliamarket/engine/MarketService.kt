@@ -90,22 +90,6 @@ class MarketService(
 
         scheduler.runAsync {
             try {
-                val activeCount = dao.countActiveItemsBySeller(player.uniqueId)
-                if (activeCount >= maxListingsPerPlayer) {
-                    // Refund item on player region thread
-                    scheduler.runAtEntity(player) {
-                        returnItemToPlayer(player, itemToSell)
-                        MessageUtil.send(
-                            player,
-                            config.getString("messages.max-listings-reached", "<red>出品上限です</red>"),
-                            mapOf("max" to maxListingsPerPlayer.toString()),
-                            prefix,
-                        )
-                    }
-                    future.complete(false)
-                    return@runAsync
-                }
-
                 val now = System.currentTimeMillis()
                 val expiresAt = now + durationHours * 3600 * 1000L
                 val bytes = ItemSerializer.toByteArray(itemToSell)
@@ -124,7 +108,20 @@ class MarketService(
                         status = MarketItemStatus.ACTIVE,
                     )
 
-                val id = dao.insertItem(marketItem)
+                val id = dao.insertItemIfBelowLimit(marketItem, maxListingsPerPlayer)
+                if (id == null) {
+                    scheduler.runAtEntity(player) {
+                        returnItemToPlayer(player, itemToSell)
+                        MessageUtil.send(
+                            player,
+                            config.getString("messages.max-listings-reached", "<red>出品上限です</red>"),
+                            mapOf("max" to maxListingsPerPlayer.toString()),
+                            prefix,
+                        )
+                    }
+                    future.complete(false)
+                    return@runAsync
+                }
                 if (id <= 0) {
                     scheduler.runAtEntity(player) {
                         returnItemToPlayer(player, itemToSell)

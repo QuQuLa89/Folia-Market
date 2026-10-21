@@ -5,6 +5,7 @@ import com.ququla89.foliamarket.database.model.MarketItemStatus
 import com.ququla89.foliamarket.database.model.MarketSortMode
 import com.ququla89.foliamarket.util.ItemSerializer
 import com.ququla89.foliamarket.util.ItemTranslationManager
+import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Statement
 import java.util.UUID
@@ -19,7 +20,37 @@ class MarketDao(
     /**
      * Inserts a new market listing and returns the generated primary key.
      */
-    fun insertItem(item: MarketItem): Long {
+    fun insertItem(item: MarketItem): Long = databaseManager.getConnection().use { insertItem(it, item) }
+
+    /**
+     * Returns null when the seller's limit is reached. The write lock covers both the count and insert.
+     */
+    fun insertItemIfBelowLimit(
+        item: MarketItem,
+        maxListings: Int,
+    ): Long? =
+        databaseManager.getConnection().use { conn ->
+            conn.createStatement().use { transaction ->
+                transaction.execute("BEGIN IMMEDIATE")
+                try {
+                    val id = if (countActiveItemsBySeller(conn, item.sellerUuid) >= maxListings) null else insertItem(conn, item)
+                    transaction.execute("COMMIT")
+                    id
+                } catch (error: Exception) {
+                    try {
+                        transaction.execute("ROLLBACK")
+                    } catch (rollbackError: Exception) {
+                        error.addSuppressed(rollbackError)
+                    }
+                    throw error
+                }
+            }
+        }
+
+    private fun insertItem(
+        conn: Connection,
+        item: MarketItem,
+    ): Long {
         val sql =
             """
             INSERT INTO market_items (
@@ -27,21 +58,19 @@ class MarketDao(
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
 
-        databaseManager.getConnection().use { conn ->
-            conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { stmt ->
-                stmt.setString(1, item.sellerUuid.toString())
-                stmt.setString(2, item.sellerName)
-                stmt.setString(3, item.itemName)
-                stmt.setBytes(4, item.itemBytes)
-                stmt.setDouble(5, item.price)
-                stmt.setLong(6, item.listedAt)
-                stmt.setLong(7, item.expiresAt)
-                stmt.setString(8, item.status.name)
+        conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { stmt ->
+            stmt.setString(1, item.sellerUuid.toString())
+            stmt.setString(2, item.sellerName)
+            stmt.setString(3, item.itemName)
+            stmt.setBytes(4, item.itemBytes)
+            stmt.setDouble(5, item.price)
+            stmt.setLong(6, item.listedAt)
+            stmt.setLong(7, item.expiresAt)
+            stmt.setString(8, item.status.name)
 
-                stmt.executeUpdate()
-                val rs = stmt.generatedKeys
-                return if (rs.next()) rs.getLong(1) else -1L
-            }
+            stmt.executeUpdate()
+            val rs = stmt.generatedKeys
+            return if (rs.next()) rs.getLong(1) else -1L
         }
     }
 
@@ -144,7 +173,12 @@ class MarketDao(
     /**
      * Counts the number of active listings by a specific seller.
      */
-    fun countActiveItemsBySeller(sellerUuid: UUID): Int {
+    fun countActiveItemsBySeller(sellerUuid: UUID): Int = databaseManager.getConnection().use { countActiveItemsBySeller(it, sellerUuid) }
+
+    private fun countActiveItemsBySeller(
+        conn: Connection,
+        sellerUuid: UUID,
+    ): Int {
         val now = System.currentTimeMillis()
         val sql =
             """
@@ -152,13 +186,11 @@ class MarketDao(
             WHERE seller_uuid = ? AND status = 'ACTIVE' AND expires_at > ?
             """.trimIndent()
 
-        databaseManager.getConnection().use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, sellerUuid.toString())
-                stmt.setLong(2, now)
-                stmt.executeQuery().use { rs ->
-                    return if (rs.next()) rs.getInt(1) else 0
-                }
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.setString(1, sellerUuid.toString())
+            stmt.setLong(2, now)
+            stmt.executeQuery().use { rs ->
+                return if (rs.next()) rs.getInt(1) else 0
             }
         }
     }
