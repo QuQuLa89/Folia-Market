@@ -56,6 +56,12 @@ class MarketService(
         val future = CompletableFuture<Boolean>()
         val prefix = getPrefix()
 
+        if (!economyService.isAvailable()) {
+            MessageUtil.send(player, "<red>経済システムが利用できないため、出品できません。</red>", prefix = prefix)
+            future.complete(false)
+            return future
+        }
+
         if (price < minPrice || price > maxPrice) {
             MessageUtil.send(
                 player,
@@ -164,6 +170,12 @@ class MarketService(
     ): CompletableFuture<Boolean> {
         val future = CompletableFuture<Boolean>()
         val prefix = getPrefix()
+
+        if (!economyService.isAvailable()) {
+            MessageUtil.send(buyer, "<red>経済システムが利用できないため、購入できません。</red>", prefix = prefix)
+            future.complete(false)
+            return future
+        }
 
         scheduler.runAsync {
             try {
