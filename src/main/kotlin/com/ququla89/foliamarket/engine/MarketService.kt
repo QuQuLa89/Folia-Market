@@ -56,6 +56,12 @@ class MarketService(
         val future = CompletableFuture<Boolean>()
         val prefix = getPrefix()
 
+        if (!economyService.isAvailable()) {
+            MessageUtil.send(player, "<red>経済システムが利用できないため、出品できません。</red>", prefix = prefix)
+            future.complete(false)
+            return future
+        }
+
         if (price < minPrice || price > maxPrice) {
             MessageUtil.send(
                 player,
@@ -84,22 +90,6 @@ class MarketService(
 
         scheduler.runAsync {
             try {
-                val activeCount = dao.countActiveItemsBySeller(player.uniqueId)
-                if (activeCount >= maxListingsPerPlayer) {
-                    // Refund item on player region thread
-                    scheduler.runAtEntity(player) {
-                        returnItemToPlayer(player, itemToSell)
-                        MessageUtil.send(
-                            player,
-                            config.getString("messages.max-listings-reached", "<red>出品上限です</red>"),
-                            mapOf("max" to maxListingsPerPlayer.toString()),
-                            prefix,
-                        )
-                    }
-                    future.complete(false)
-                    return@runAsync
-                }
-
                 val now = System.currentTimeMillis()
                 val expiresAt = now + durationHours * 3600 * 1000L
                 val bytes = ItemSerializer.toByteArray(itemToSell)
@@ -118,7 +108,20 @@ class MarketService(
                         status = MarketItemStatus.ACTIVE,
                     )
 
-                val id = dao.insertItem(marketItem)
+                val id = dao.insertItemIfBelowLimit(marketItem, maxListingsPerPlayer)
+                if (id == null) {
+                    scheduler.runAtEntity(player) {
+                        returnItemToPlayer(player, itemToSell)
+                        MessageUtil.send(
+                            player,
+                            config.getString("messages.max-listings-reached", "<red>出品上限です</red>"),
+                            mapOf("max" to maxListingsPerPlayer.toString()),
+                            prefix,
+                        )
+                    }
+                    future.complete(false)
+                    return@runAsync
+                }
                 if (id <= 0) {
                     scheduler.runAtEntity(player) {
                         returnItemToPlayer(player, itemToSell)
@@ -164,6 +167,12 @@ class MarketService(
     ): CompletableFuture<Boolean> {
         val future = CompletableFuture<Boolean>()
         val prefix = getPrefix()
+
+        if (!economyService.isAvailable()) {
+            MessageUtil.send(buyer, "<red>経済システムが利用できないため、購入できません。</red>", prefix = prefix)
+            future.complete(false)
+            return future
+        }
 
         scheduler.runAsync {
             try {

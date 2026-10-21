@@ -28,3 +28,8 @@ desktop.ini
 run/
 plugins/
 logs/
+
+# Local environment and secrets
+.env
+.env.local
+.env.*

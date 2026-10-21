@@ -51,7 +51,7 @@ class EconomyService(
     fun has(
         player: OfflinePlayer,
         amount: Double,
-    ): Boolean = vaultEconomy?.has(player, amount) ?: true
+    ): Boolean = vaultEconomy?.has(player, amount) ?: false
 
     /**
      * Withdraws funds from a player account.
@@ -60,7 +60,7 @@ class EconomyService(
         player: OfflinePlayer,
         amount: Double,
     ): Boolean {
-        val econ = vaultEconomy ?: return true
+        val econ = vaultEconomy ?: return false
         val response = econ.withdrawPlayer(player, amount)
         return response.transactionSuccess()
     }
@@ -72,7 +72,7 @@ class EconomyService(
         player: OfflinePlayer,
         amount: Double,
     ): Boolean {
-        val econ = vaultEconomy ?: return true
+        val econ = vaultEconomy ?: return false
         val response = econ.depositPlayer(player, amount)
         return response.transactionSuccess()
     }

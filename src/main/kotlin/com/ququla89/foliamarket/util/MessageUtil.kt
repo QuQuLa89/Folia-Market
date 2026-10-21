@@ -3,6 +3,7 @@ package com.ququla89.foliamarket.util
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 
 /**
@@ -19,11 +20,13 @@ object MessageUtil {
         text: String?,
         placeholders: Map<String, String> = emptyMap(),
     ): Component {
-        var processed = text ?: ""
-        for ((key, value) in placeholders) {
-            processed = processed.replace("{$key}", value)
-        }
-        return miniMessage.deserialize(processed)
+        val tags = placeholders.keys.withIndex().associate { (index, key) -> key to "market_value_$index" }
+        val processed =
+            Regex("\\{([^{}]+)}").replace(text ?: "") { match ->
+                tags[match.groupValues[1]]?.let { "<$it>" } ?: match.value
+            }
+        val resolvers = placeholders.map { (key, value) -> Placeholder.unparsed(tags.getValue(key), value) }
+        return miniMessage.deserialize(processed, *resolvers.toTypedArray())
     }
 
     /**
@@ -64,9 +67,16 @@ object MessageUtil {
         val line = "<dark_gray>----------------------------------------</dark_gray>"
         audience.sendMessage(parse(line))
         audience.sendMessage(parse("<gradient:#f12711:#f5af19><b>        ★ 取引完了レシート ★</b></gradient>"))
-        audience.sendMessage(parse("<gray>購入アイテム: <white>$itemName × $amount</white></gray>"))
-        audience.sendMessage(parse("<gray>出品者: <yellow>$sellerName</yellow></gray>"))
-        audience.sendMessage(parse("<gray>支払金額: <gold>%,.2f %s</gold></gray>".format(totalPrice, currencySymbol)))
+        audience.sendMessage(
+            parse("<gray>購入アイテム: <white>{item} × {amount}</white></gray>", mapOf("item" to itemName, "amount" to amount.toString())),
+        )
+        audience.sendMessage(parse("<gray>出品者: <yellow>{seller}</yellow></gray>", mapOf("seller" to sellerName)))
+        audience.sendMessage(
+            parse(
+                "<gray>支払金額: <gold>{price} {currency}</gold></gray>",
+                mapOf("price" to "%,.2f".format(totalPrice), "currency" to currencySymbol),
+            ),
+        )
         audience.sendMessage(parse("<gray>ステータス: <green>正常完了 (スレッドセーフCAS検証済)</green></gray>"))
         audience.sendMessage(parse(line))
     }
