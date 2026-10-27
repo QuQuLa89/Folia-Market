@@ -153,6 +153,7 @@ class MarketGui(
                     val title = MessageUtil.parse(titleStr, mapOf("keyword" to (searchKeyword ?: "")))
                     inventory = Bukkit.createInventory(newHolder, 54, title)
                     newHolder.setInventory(inventory)
+                    player.openInventory(inventory)
                     playerSlotState[player] = ConcurrentHashMap()
                 }
 
@@ -165,10 +166,6 @@ class MarketGui(
                     sortMode = sortMode,
                     searchKeyword = searchKeyword,
                 )
-
-                if (!isReusing) {
-                    player.openInventory(inventory)
-                }
             }
         }
     }

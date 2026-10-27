@@ -15,9 +15,12 @@ class FoliaSchedulerAdapter(
 ) : SchedulerAdapter {
     override fun runAtEntity(
         entity: Entity,
+        retired: (() -> Unit)?,
         task: Runnable,
     ) {
-        entity.scheduler.run(plugin, { _ -> task.run() }, null)
+        val scheduled = entity.scheduler.run(plugin, { _ -> task.run() }, retired?.let { Runnable { it() } })
+        // An already retired entity rejects the task without invoking the retired callback.
+        if (scheduled == null) retired?.invoke()
     }
 
     override fun runAtLocation(

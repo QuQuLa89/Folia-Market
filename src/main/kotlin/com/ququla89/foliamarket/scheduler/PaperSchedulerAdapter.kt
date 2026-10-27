@@ -3,6 +3,7 @@ package com.ququla89.foliamarket.scheduler
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
+import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
 import org.bukkit.scheduler.BukkitTask
 
@@ -14,9 +15,19 @@ class PaperSchedulerAdapter(
 ) : SchedulerAdapter {
     override fun runAtEntity(
         entity: Entity,
+        retired: (() -> Unit)?,
         task: Runnable,
     ) {
-        Bukkit.getScheduler().runTask(plugin, task)
+        Bukkit.getScheduler().runTask(
+            plugin,
+            Runnable {
+                if ((entity is Player && !entity.isOnline) || (entity !is Player && !entity.isValid)) {
+                    retired?.invoke()
+                } else {
+                    task.run()
+                }
+            },
+        )
     }
 
     override fun runAtLocation(

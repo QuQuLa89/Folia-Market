@@ -13,6 +13,7 @@ import org.bukkit.Material
 import org.bukkit.configuration.file.FileConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import java.util.Base64
 import java.util.concurrent.CompletableFuture
 import java.util.logging.Logger
 
@@ -84,34 +85,28 @@ class MarketService(
             return future
         }
 
-        // Clone item to list and remove from player's inventory
+        // Serialize before removing the item so failures cannot destroy the only recoverable copy.
         val itemToSell = itemInHand.clone()
+        val now = System.currentTimeMillis()
+        val displayName = getItemDisplayName(itemToSell)
+        val marketItem =
+            MarketItem(
+                sellerUuid = player.uniqueId,
+                sellerName = player.name,
+                itemName = ItemTranslationManager.buildSearchIndex(itemToSell),
+                itemBytes = ItemSerializer.toByteArray(itemToSell),
+                price = price,
+                listedAt = now,
+                expiresAt = now + durationHours * 3600 * 1000L,
+                status = MarketItemStatus.ACTIVE,
+            )
         player.inventory.setItemInMainHand(ItemStack(Material.AIR))
 
         scheduler.runAsync {
             try {
-                val now = System.currentTimeMillis()
-                val expiresAt = now + durationHours * 3600 * 1000L
-                val bytes = ItemSerializer.toByteArray(itemToSell)
-                val displayName = getItemDisplayName(itemToSell)
-                val searchIndex = ItemTranslationManager.buildSearchIndex(itemToSell)
-
-                val marketItem =
-                    MarketItem(
-                        sellerUuid = player.uniqueId,
-                        sellerName = player.name,
-                        itemName = searchIndex,
-                        itemBytes = bytes,
-                        price = price,
-                        listedAt = now,
-                        expiresAt = expiresAt,
-                        status = MarketItemStatus.ACTIVE,
-                    )
-
                 val id = dao.insertItemIfBelowLimit(marketItem, maxListingsPerPlayer)
                 if (id == null) {
-                    scheduler.runAtEntity(player) {
-                        returnItemToPlayer(player, itemToSell)
+                    returnFailedListing(player, itemToSell, marketItem, future) {
                         MessageUtil.send(
                             player,
                             config.getString("messages.max-listings-reached", "<red>出品上限です</red>"),
@@ -119,18 +114,16 @@ class MarketService(
                             prefix,
                         )
                     }
-                    future.complete(false)
                     return@runAsync
                 }
                 if (id <= 0) {
-                    scheduler.runAtEntity(player) {
-                        returnItemToPlayer(player, itemToSell)
+                    returnFailedListing(player, itemToSell, marketItem, future) {
                         MessageUtil.send(player, "<red>データベース保存に失敗しました。</red>", prefix = prefix)
                     }
-                    future.complete(false)
                     return@runAsync
                 }
 
+                future.complete(true)
                 scheduler.runAtEntity(player) {
                     MessageUtil.send(
                         player,
@@ -144,18 +137,52 @@ class MarketService(
                         prefix,
                     )
                 }
-                future.complete(true)
             } catch (e: Exception) {
                 logger.severe("Failed to list item for player ${player.name}: ${e.message}")
-                scheduler.runAtEntity(player) {
-                    returnItemToPlayer(player, itemToSell)
-                    MessageUtil.send(player, "<red>予期せぬエラーが発生しました。</red>", prefix = prefix)
+                if (!future.isDone) {
+                    returnFailedListing(player, itemToSell, marketItem, future) {
+                        MessageUtil.send(player, "<red>予期せぬエラーが発生しました。</red>", prefix = prefix)
+                    }
                 }
-                future.completeExceptionally(e)
             }
         }
 
         return future
+    }
+
+    private fun returnFailedListing(
+        player: Player,
+        item: ItemStack,
+        listing: MarketItem,
+        future: CompletableFuture<Boolean>,
+        notify: () -> Unit,
+    ) {
+        val recover = {
+            scheduler.runAsync {
+                try {
+                    // EXPIRED listings remain reclaimable in My Listings and do not consume the listing limit.
+                    val id = dao.insertItem(listing.copy(status = MarketItemStatus.EXPIRED))
+                    check(id > 0) { "Recovery listing was not saved" }
+                    logger.warning("Stored undelivered listing as reclaimable item $id for ${listing.sellerUuid}")
+                    future.complete(false)
+                } catch (error: Exception) {
+                    logger.severe(
+                        "Item recovery required for ${listing.sellerUuid}: ${error.message}; " +
+                            "itemBytesBase64=${Base64.getEncoder().encodeToString(listing.itemBytes)}",
+                    )
+                    future.completeExceptionally(error)
+                }
+            }
+        }
+        scheduler.runAtEntity(player, retired = recover) {
+            if (!player.isOnline) {
+                recover()
+                return@runAtEntity
+            }
+            returnItemToPlayer(player, item)
+            future.complete(false)
+            notify()
+        }
     }
 
     /**
@@ -175,6 +202,9 @@ class MarketService(
         }
 
         scheduler.runAsync {
+            var reservedItem: MarketItem? = null
+            var charged = false
+            var delivered = false
             try {
                 val item = dao.getItemById(itemId)
                 if (item == null || item.status != MarketItemStatus.ACTIVE || item.expiresAt <= System.currentTimeMillis()) {
@@ -227,31 +257,63 @@ class MarketService(
                     future.complete(false)
                     return@runAsync
                 }
+                reservedItem = item
 
                 // Financial transaction
                 val withdrawSuccess = economyService.withdraw(buyer, item.price)
                 if (!withdrawSuccess) {
                     // Rollback CAS if withdrawal failed
-                    dao.casUpdateStatus(itemId, MarketItemStatus.SOLD, MarketItemStatus.ACTIVE)
+                    rollbackPurchase(buyer, itemId, item, false, future)
                     scheduler.runAtEntity(buyer) {
                         MessageUtil.send(buyer, "<red>残高の引き落としに失敗しました。</red>", prefix = prefix)
                     }
-                    future.complete(false)
                     return@runAsync
                 }
+                charged = true
 
                 val taxAmount = item.price * (taxPercent / 100.0)
                 val netPrice = item.price - taxAmount
-
-                val seller = Bukkit.getOfflinePlayer(item.sellerUuid)
-                economyService.deposit(seller, netPrice)
 
                 val itemStack = ItemSerializer.fromByteArray(item.itemBytes)
                 val displayName = getItemDisplayName(itemStack)
 
                 // Deliver item and receipt on buyer's entity thread
-                scheduler.runAtEntity(buyer) {
+                scheduler.runAtEntity(buyer, retired = { rollbackPurchase(buyer, itemId, item, true, future) }) {
+                    if (!buyer.isOnline) {
+                        rollbackPurchase(buyer, itemId, item, true, future)
+                        return@runAtEntity
+                    }
                     val dropped = returnItemToPlayer(buyer, itemStack)
+                    delivered = true
+                    // Pay the seller only after delivery; retired buyers require only a buyer refund.
+                    scheduler.runAsync {
+                        try {
+                            val seller = Bukkit.getOfflinePlayer(item.sellerUuid)
+                            check(economyService.deposit(seller, netPrice)) { "Seller payment failed" }
+                            val onlineSeller = Bukkit.getPlayer(item.sellerUuid)
+                            if (onlineSeller != null) {
+                                scheduler.runAtEntity(onlineSeller) {
+                                    MessageUtil.send(
+                                        onlineSeller,
+                                        config.getString("messages.sale-notification", "<gold>売れました</gold>"),
+                                        mapOf(
+                                            "item" to displayName,
+                                            "buyer" to buyer.name,
+                                            "net_price" to "%,.2f".format(netPrice),
+                                            "tax_amount" to "%,.2f".format(taxAmount),
+                                            "currency" to economyService.getCurrencyName(),
+                                        ),
+                                        prefix,
+                                    )
+                                }
+                            }
+                        } catch (error: Exception) {
+                            logger.severe(
+                                "Seller payout requires recovery: item=$itemId seller=${item.sellerUuid} amount=$netPrice: ${error.message}",
+                            )
+                        }
+                    }
+                    future.complete(true)
                     if (dropped) {
                         MessageUtil.send(
                             buyer,
@@ -280,34 +342,38 @@ class MarketService(
                         item.sellerName,
                     )
                 }
-
-                // Notify seller if online
-                val onlineSeller = Bukkit.getPlayer(item.sellerUuid)
-                if (onlineSeller != null) {
-                    scheduler.runAtEntity(onlineSeller) {
-                        MessageUtil.send(
-                            onlineSeller,
-                            config.getString("messages.sale-notification", "<gold>売れました</gold>"),
-                            mapOf(
-                                "item" to displayName,
-                                "buyer" to buyer.name,
-                                "net_price" to "%,.2f".format(netPrice),
-                                "tax_amount" to "%,.2f".format(taxAmount),
-                                "currency" to economyService.getCurrencyName(),
-                            ),
-                            prefix,
-                        )
-                    }
-                }
-
-                future.complete(true)
             } catch (e: Exception) {
                 logger.severe("Error during purchase of item $itemId by ${buyer.name}: ${e.message}")
-                future.completeExceptionally(e)
+                val item = reservedItem
+                if (item != null && !delivered && !future.isDone) {
+                    rollbackPurchase(buyer, itemId, item, charged, future)
+                } else if (!future.isDone) {
+                    future.completeExceptionally(e)
+                }
             }
         }
 
         return future
+    }
+
+    private fun rollbackPurchase(
+        buyer: Player,
+        itemId: Long,
+        item: MarketItem,
+        charged: Boolean,
+        future: CompletableFuture<Boolean>,
+    ) {
+        // Retired callbacks must not perform blocking database or economy work on the entity thread.
+        scheduler.runAsync {
+            try {
+                if (charged) check(economyService.deposit(buyer, item.price)) { "Buyer refund failed" }
+                check(dao.casUpdateStatus(itemId, MarketItemStatus.SOLD, MarketItemStatus.ACTIVE)) { "Sale rollback failed" }
+                future.complete(false)
+            } catch (error: Exception) {
+                logger.severe("Purchase recovery required: item=$itemId buyer=${buyer.uniqueId} price=${item.price}: ${error.message}")
+                future.completeExceptionally(error)
+            }
+        }
     }
 
     /**
@@ -349,6 +415,8 @@ class MarketService(
                     return@runAsync
                 }
 
+                val itemStack = ItemSerializer.fromByteArray(item.itemBytes)
+                val displayName = getItemDisplayName(itemStack)
                 val casSuccess = dao.casUpdateStatus(itemId, currentStatus, MarketItemStatus.CANCELLED)
                 if (!casSuccess) {
                     scheduler.runAtEntity(seller) {
@@ -362,11 +430,24 @@ class MarketService(
                     return@runAsync
                 }
 
-                val itemStack = ItemSerializer.fromByteArray(item.itemBytes)
-                val displayName = getItemDisplayName(itemStack)
-
-                scheduler.runAtEntity(seller) {
+                val restore = {
+                    scheduler.runAsync {
+                        try {
+                            check(dao.casUpdateStatus(itemId, MarketItemStatus.CANCELLED, currentStatus)) { "Cancellation rollback failed" }
+                            future.complete(false)
+                        } catch (error: Exception) {
+                            logger.severe("Cancellation recovery required: item=$itemId seller=${seller.uniqueId}: ${error.message}")
+                            future.completeExceptionally(error)
+                        }
+                    }
+                }
+                scheduler.runAtEntity(seller, retired = restore) {
+                    if (!seller.isOnline) {
+                        restore()
+                        return@runAtEntity
+                    }
                     returnItemToPlayer(seller, itemStack)
+                    future.complete(true)
                     MessageUtil.send(
                         seller,
                         config.getString("messages.listing-cancel-success", "<yellow>回収しました</yellow>"),
@@ -374,8 +455,6 @@ class MarketService(
                         prefix,
                     )
                 }
-
-                future.complete(true)
             } catch (e: Exception) {
                 logger.severe("Error cancelling listing $itemId for ${seller.name}: ${e.message}")
                 future.completeExceptionally(e)
