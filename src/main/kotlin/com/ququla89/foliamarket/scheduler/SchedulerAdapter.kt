@@ -12,6 +12,7 @@ interface SchedulerAdapter {
      */
     fun runAtEntity(
         entity: Entity,
+        retired: (() -> Unit)? = null,
         task: Runnable,
     )
 

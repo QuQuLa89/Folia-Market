@@ -110,6 +110,7 @@ class EconomyAvailabilityTest {
             )
         `when`(dao.getItemById(1L)).thenReturn(item)
         `when`(dao.casUpdateStatus(1L, MarketItemStatus.ACTIVE, MarketItemStatus.SOLD)).thenReturn(true)
+        `when`(dao.casUpdateStatus(1L, MarketItemStatus.SOLD, MarketItemStatus.ACTIVE)).thenReturn(true)
         val scheduler = mock(SchedulerAdapter::class.java)
         doAnswer {
             it.getArgument<Runnable>(0).run()

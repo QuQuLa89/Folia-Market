@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.ququla89"
-version = "1.0.1"
+version = "1.0.2"
 
 val pluginVersion = version.toString()
 
@@ -53,6 +53,10 @@ kotlin {
 }
 
 tasks {
+    jar {
+        enabled = false
+    }
+
     shadowJar {
         archiveBaseName.set("folia-market")
         archiveClassifier.set("")
@@ -69,6 +73,7 @@ tasks {
     }
 
     processResources {
+        inputs.property("version", pluginVersion)
         filesMatching("paper-plugin.yml") {
             expand("version" to pluginVersion)
         }

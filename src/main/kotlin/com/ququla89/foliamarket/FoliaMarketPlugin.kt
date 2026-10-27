@@ -30,6 +30,7 @@ class FoliaMarketPlugin : JavaPlugin() {
     private lateinit var marketService: MarketService
     private lateinit var stressTestService: StressTestService
     private lateinit var marketGui: MarketGui
+    private lateinit var marketCommand: MarketCommand
     private var isFoliaPlatform: Boolean = false
     private var expirationTaskHandle: AutoCloseable? = null
     private var guiRefreshTaskHandle: AutoCloseable? = null
@@ -132,10 +133,11 @@ class FoliaMarketPlugin : JavaPlugin() {
         val newConfig = config
         marketService.reloadConfig(newConfig)
         marketGui.reloadConfig(newConfig)
+        marketCommand.reloadConfig(newConfig)
     }
 
     private fun registerMarketCommand() {
-        val executor =
+        marketCommand =
             MarketCommand(
                 plugin = this,
                 marketService = marketService,
@@ -157,13 +159,13 @@ class FoliaMarketPlugin : JavaPlugin() {
                     sender: CommandSender,
                     commandLabel: String,
                     args: Array<out String>,
-                ): Boolean = executor.onCommand(sender, this, commandLabel, args)
+                ): Boolean = marketCommand.onCommand(sender, this, commandLabel, args)
 
                 override fun tabComplete(
                     sender: CommandSender,
                     alias: String,
                     args: Array<out String>,
-                ): List<String> = executor.onTabComplete(sender, this, alias, args)
+                ): List<String> = marketCommand.onTabComplete(sender, this, alias, args)
             }
 
         server.commandMap.register("foliamarket", bukkitCommand)
