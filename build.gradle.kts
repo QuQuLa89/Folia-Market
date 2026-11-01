@@ -33,14 +33,14 @@ dependencies {
 
     // Database: HikariCP & SQLite JDBC
     implementation("com.zaxxer:HikariCP:7.1.0")
-    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+    implementation("org.xerial:sqlite-jdbc:3.54.1.0")
 
     // Ktlint CLI for formatting & verification
     add(ktlint.name, "com.pinterest.ktlint:ktlint-cli:1.8.0")
 
     // Testing
     testImplementation(kotlin("test-junit5"))
-    testImplementation("org.mockito:mockito-core:5.20.0")
+    testImplementation("org.mockito:mockito-core:5.24.0")
     testImplementation("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
